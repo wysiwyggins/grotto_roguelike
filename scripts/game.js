@@ -30,21 +30,10 @@ for (let y = 0; y < MAP_HEIGHT; y++) {
 // Load the spritesheet using the global PIXI.Loader object
 PIXI.Loader.shared.add('tiles', SPRITESHEET_PATH).load(setup);
 
-
-
-// This function will run when the spritesheet has finished loading
-function setup() {
-    // Create a Texture from the specific tile you want to use
-    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
-    let charX = 10; // X position (in tiles) of the character in the spritesheet
-    let charY = 5; // Y position (in tiles) of the character in the spritesheet
-    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(charX * TILE_WIDTH, charY * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT));
-
-    // Constants for the footprint and overlay sprites
+function createPlayerSprite() {
     const FOOTPRINT_SPRITE_POSITION = {x: 10, y: 5};
     const OVERLAY_SPRITE_POSITION = {x: 1, y: 0};
-
-    // Inside the setup function, create the footprint sprite
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         FOOTPRINT_SPRITE_POSITION.x * TILE_WIDTH, 
         FOOTPRINT_SPRITE_POSITION.y * TILE_HEIGHT, 
@@ -71,36 +60,54 @@ function setup() {
 
     // Store sprites for movement
     playerSprite = { footprint: spriteFootprint, overlay: spriteOverlay };
+}
 
-
-    // Scale down the sprite size for HiDPI
-    spriteFootprint.scale.set(SCALE_FACTOR);
-
-    // Add the sprite to the stage
-    app.stage.addChild(spriteFootprint);
-
-    function createWall(x, y) {
-        // Wall tile coordinates on the spritesheet
-        const WALL_SPRITE_POSITION = {x: 16, y: 5};
-    
-        // Create a Texture for the wall
-        let wallTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            WALL_SPRITE_POSITION.x * TILE_WIDTH, 
-            WALL_SPRITE_POSITION.y * TILE_HEIGHT, 
-            TILE_WIDTH, TILE_HEIGHT));
-    
-        // Create a new Sprite for the wall
-        let wallSprite = new PIXI.Sprite(wallTexture);
-    
-        // Scale and position the wall sprite
-        wallSprite.scale.set(SCALE_FACTOR);
-        wallSprite.x = x * TILE_WIDTH * SCALE_FACTOR;
-        wallSprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
-    
-        // Add the wall sprite to the stage
-        app.stage.addChild(wallSprite);
-        map[y][x] = 1;
+function createSprite(x, y, position, value) {
+    if (!map[y]) {
+        map[y] = [];
     }
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        position.x * TILE_WIDTH,
+        position.y * TILE_HEIGHT,
+        TILE_WIDTH, TILE_HEIGHT));
+    
+    let sprite = new PIXI.Sprite(texture);
+    sprite.scale.set(SCALE_FACTOR);
+    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
+    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    
+    app.stage.addChild(sprite);
+    map[y][x] = value;
+}
+function createVoid(x, y){
+    createSprite(x, y, {x: 9, y: 10}, 216);
+}
+
+function createFloor(x, y) {
+    createSprite(x, y, {x: 19, y: 6}, 157);
+}
+
+function createWall(x, y) {
+    createSprite(x, y, {x: 16, y: 7}, null); // footprint
+    createSprite(x, y - 1, {x: 16, y: 7}, null); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 177); // top
+}
+
+// This function will run when the spritesheet has finished loading
+function setup() {
+    
+   
+
+    //init map with floor tiles
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            createFloor(y,x);
+        }
+    }
+
+    createPlayerSprite();
+
     createWall(10, 10);
     createWall(11, 10);
     createWall(12, 10);
@@ -108,14 +115,29 @@ function setup() {
     function movePlayer(dx, dy) {
         let newX = playerSprite.footprint.x / (TILE_WIDTH * SCALE_FACTOR) + dx;
         let newY = playerSprite.footprint.y / (TILE_HEIGHT * SCALE_FACTOR) + dy;
-        
-        // Check if the new position is within the map bounds and not a wall tile
-        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX] !== 1) {
+            
+        // Check if the new position is within the map bounds and is a floor tile
+        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX] === 157) {
             playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
             playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
             playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
             playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
         }
+
+        app.stage.children.sort((a, b) => {
+            // Fetch the actual y position for comparison
+            let ay = a === playerSprite.overlay ? playerSprite.footprint.y : a.y;
+            let by = b === playerSprite.overlay ? playerSprite.footprint.y : b.y;
+        
+            if (ay === by) {
+                // Fetch the actual x position for comparison
+                let ax = a === playerSprite.overlay ? playerSprite.footprint.x : a.x;
+                let bx = b === playerSprite.overlay ? playerSprite.footprint.x : b.x;
+        
+                return ax - bx;
+            }
+            return ay - by;
+        });
     }
 
     // Listen for keyboard input
