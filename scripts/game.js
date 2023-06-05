@@ -13,9 +13,19 @@ document.getElementById('game').appendChild(app.view);
 // Set up some constants
 const TILE_WIDTH = 40;
 const TILE_HEIGHT = 30;
+const MAP_WIDTH = 40;
+const MAP_HEIGHT = 30;
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
+
+let map = new Array(MAP_HEIGHT);
+for (let y = 0; y < MAP_HEIGHT; y++) {
+    map[y] = new Array(MAP_WIDTH);
+    for (let x = 0; x < MAP_WIDTH; x++) {
+        map[y][x] = 0; // 0 will represent an empty tile, you can use other numbers to represent other types of tiles
+    }
+}
 
 // Load the spritesheet using the global PIXI.Loader object
 PIXI.Loader.shared.add('tiles', SPRITESHEET_PATH).load(setup);
@@ -89,20 +99,23 @@ function setup() {
     
         // Add the wall sprite to the stage
         app.stage.addChild(wallSprite);
+        map[y][x] = 1;
     }
     createWall(10, 10);
     createWall(11, 10);
     createWall(12, 10);
 
-    
-    
-
     function movePlayer(dx, dy) {
-        playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
-        playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
-    
-        playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
-        playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
+        let newX = playerSprite.footprint.x / (TILE_WIDTH * SCALE_FACTOR) + dx;
+        let newY = playerSprite.footprint.y / (TILE_HEIGHT * SCALE_FACTOR) + dy;
+        
+        // Check if the new position is within the map bounds and not a wall tile
+        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX] !== 1) {
+            playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
+            playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
+            playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
+            playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
+        }
     }
 
     // Listen for keyboard input
