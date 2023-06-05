@@ -66,6 +66,12 @@ function createSprite(x, y, position, value) {
     if (!map[y]) {
         map[y] = [];
     }
+
+    // If a sprite already exists at this position, remove it from the stage
+    if (map[y][x] && map[y][x].sprite) {
+        app.stage.removeChild(map[y][x].sprite);
+    }
+
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         position.x * TILE_WIDTH,
@@ -78,7 +84,7 @@ function createSprite(x, y, position, value) {
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
     
     app.stage.addChild(sprite);
-    map[y][x] = value;
+    map[y][x] = {value: value, sprite: sprite};
 }
 function createVoid(x, y){
     createSprite(x, y, {x: 9, y: 10}, 216);
@@ -117,13 +123,13 @@ function setup() {
         let newY = playerSprite.footprint.y / (TILE_HEIGHT * SCALE_FACTOR) + dy;
             
         // Check if the new position is within the map bounds and is a floor tile
-        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX] === 157) {
+        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX].value === 157) {
             playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
             playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
             playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
             playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
         }
-
+    
         app.stage.children.sort((a, b) => {
             // Fetch the actual y position for comparison
             let ay = a === playerSprite.overlay ? playerSprite.footprint.y : a.y;
@@ -139,8 +145,8 @@ function setup() {
             return ay - by;
         });
     }
+    
 
-    // Listen for keyboard input
     // Listen for keyboard input
     window.addEventListener("keydown", function(event) {
         switch(event.key) {
@@ -161,7 +167,4 @@ function setup() {
         }
     });
 
-
-
-   
 }
