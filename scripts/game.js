@@ -2,7 +2,9 @@
 let app = new PIXI.Application({
     width: window.innerWidth,
     height: window.innerHeight,
-    backgroundColor: 0xFFFFFF 
+    backgroundColor: 0xFFFFFF,
+    resolution: window.devicePixelRatio || 1,
+    autoDensity: true
 });
 
 // Add the app view to our HTML document
@@ -18,44 +20,113 @@ const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
 // Load the spritesheet using the global PIXI.Loader object
 PIXI.Loader.shared.add('tiles', SPRITESHEET_PATH).load(setup);
 
+
+
 // This function will run when the spritesheet has finished loading
 function setup() {
     // Create a Texture from the specific tile you want to use
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
-    let charX = 1; // X position (in tiles) of the character in the spritesheet
-    let charY = 0; // Y position (in tiles) of the character in the spritesheet
+    let charX = 10; // X position (in tiles) of the character in the spritesheet
+    let charY = 5; // Y position (in tiles) of the character in the spritesheet
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(charX * TILE_WIDTH, charY * TILE_HEIGHT, TILE_WIDTH, TILE_HEIGHT));
 
-    // Create a new Sprite from the texture
-    let sprite = new PIXI.Sprite(texture);
+    // Constants for the footprint and overlay sprites
+    const FOOTPRINT_SPRITE_POSITION = {x: 10, y: 5};
+    const OVERLAY_SPRITE_POSITION = {x: 1, y: 0};
 
-    // Position the sprite
-    sprite.x = SPRITE_POSITION * TILE_WIDTH * SCALE_FACTOR; // Scale the position for HiDPI
-    sprite.y = SPRITE_POSITION * TILE_HEIGHT * SCALE_FACTOR; // Scale the position for HiDPI
+    // Inside the setup function, create the footprint sprite
+    let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        FOOTPRINT_SPRITE_POSITION.x * TILE_WIDTH, 
+        FOOTPRINT_SPRITE_POSITION.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+
+    let spriteFootprint = new PIXI.Sprite(footprintTexture);
+    spriteFootprint.scale.set(SCALE_FACTOR);
+    spriteFootprint.x = SPRITE_POSITION * TILE_WIDTH * SCALE_FACTOR;
+    spriteFootprint.y = SPRITE_POSITION * TILE_HEIGHT * SCALE_FACTOR;
+
+    // Create the overlay sprite
+    let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        OVERLAY_SPRITE_POSITION.x * TILE_WIDTH, 
+        OVERLAY_SPRITE_POSITION.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteOverlay = new PIXI.Sprite(overlayTexture);
+    spriteOverlay.scale.set(SCALE_FACTOR);
+    spriteOverlay.x = spriteFootprint.x;
+    spriteOverlay.y = spriteFootprint.y - TILE_HEIGHT * SCALE_FACTOR;
+
+    // Add both sprites to the stage
+    app.stage.addChild(spriteFootprint);
+    app.stage.addChild(spriteOverlay);
+
+    // Store sprites for movement
+    playerSprite = { footprint: spriteFootprint, overlay: spriteOverlay };
+
 
     // Scale down the sprite size for HiDPI
-    sprite.scale.set(SCALE_FACTOR);
+    spriteFootprint.scale.set(SCALE_FACTOR);
 
     // Add the sprite to the stage
-    app.stage.addChild(sprite);
+    app.stage.addChild(spriteFootprint);
 
+    function createWall(x, y) {
+        // Wall tile coordinates on the spritesheet
+        const WALL_SPRITE_POSITION = {x: 16, y: 5};
+    
+        // Create a Texture for the wall
+        let wallTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            WALL_SPRITE_POSITION.x * TILE_WIDTH, 
+            WALL_SPRITE_POSITION.y * TILE_HEIGHT, 
+            TILE_WIDTH, TILE_HEIGHT));
+    
+        // Create a new Sprite for the wall
+        let wallSprite = new PIXI.Sprite(wallTexture);
+    
+        // Scale and position the wall sprite
+        wallSprite.scale.set(SCALE_FACTOR);
+        wallSprite.x = x * TILE_WIDTH * SCALE_FACTOR;
+        wallSprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    
+        // Add the wall sprite to the stage
+        app.stage.addChild(wallSprite);
+    }
+    createWall(10, 10);
+    createWall(11, 10);
+    createWall(12, 10);
+
+    
+    
+
+    function movePlayer(dx, dy) {
+        playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
+        playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
+    
+        playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
+        playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
+    }
+
+    // Listen for keyboard input
     // Listen for keyboard input
     window.addEventListener("keydown", function(event) {
         switch(event.key) {
             case 'ArrowUp':
-                sprite.y -= TILE_HEIGHT * SCALE_FACTOR;
+                movePlayer(0, -1);
                 break;
             case 'ArrowDown':
-                sprite.y += TILE_HEIGHT * SCALE_FACTOR;
+                movePlayer(0, 1);
                 break;
             case 'ArrowLeft':
-                sprite.x -= TILE_WIDTH * SCALE_FACTOR;
+                movePlayer(-1, 0);
                 break;
             case 'ArrowRight':
-                sprite.x += TILE_WIDTH * SCALE_FACTOR;
+                movePlayer(1, 0);
                 break;
             default:
                 break;
         }
     });
+
+
+
+   
 }
