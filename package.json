@@ -1,0 +1,16 @@
+{
+  "name": "grotto_roguelike",
+  "version": "1.0.0",
+  "description": "A turn based roguelike that connects to the Grotto multiplayer platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Wiley Wiggins",
+  "license": "ISC",
+  "dependencies": {
+    "pixi.js": "^7.2.4",
+    "rot-js": "^2.2.0",
+    "tmx-parser": "^1.5.0"
+  }
+}

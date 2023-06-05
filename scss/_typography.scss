@@ -1,0 +1,109 @@
+//webfonts
+
+
+@import url('https://fonts.googleapis.com/css2?family=Almendra+Display&display=swap');
+
+@font-face {
+    font-family: 'courier_prime_coderegular';
+    src: url('/assets/fonts/courier_prime_code-webfont.woff2') format('woff2'),
+         url('/assets/fonts/courier_prime_code-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+
+@font-face {
+    font-family: 'theano_didotregular';
+    src: url('/assets/fonts/theanodidot-regular-webfont.woff2') format('woff2'),
+         url('/assets/fonts/theanodidot-regular-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: "Portfolio";
+    src: url("/assets/fonts/Web437_Portfolio_6x8.woff") format("woff");
+}
+
+@font-face {
+    font-family: '18th_century_kurrent_textRg';
+    src: url('/assets/fonts/18thctrkurtxt-webfont.woff2') format('woff2'),
+         url('/assets/fonts/18thctrkurtxt-webfont.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: "AdamicBee";
+    src: url("/assets/fonts/AdamicBee.woff") format("woff");
+}
+
+
+@mixin default-header {
+    font-size: 6em;
+    margin-bottom: 10px;
+    font-family: kern_mansionregular, cursive;
+    text-align: center;
+}
+// styles
+
+.secret {
+    @include spoiler();
+}
+
+kbd {
+    background-color: #eee;
+    border-radius: 3px;
+    border: 1px solid #b4b4b4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0,  .2), 0 2px 0 0 rgba(255, 255, 255 , .7) inset;
+    color: #333;
+    display: inline-block;
+    font-size: .85em;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 4px;
+    white-space: nowrap;
+}
+
+// non-iconic text styles
+
+body {
+    font-family: 'courier_prime_coderegular', Courier, monospace;
+    font-size: 1em;
+}
+
+ul.warnings {
+    li {
+        color:rgb(255, 0, 0);
+    }
+}
+ul.messages {
+    li {
+        color:rgb(255, 183, 0);
+    }
+}
+
+span.message {
+    color:rgb(255, 183, 0);
+}
+
+span.warning {
+    color:rgb(255, 0, 0);
+}
+
+.small {
+    font-size: smaller;
+}
+
+.level-12, .kurrent {
+    font-family: '18th_century_kurrent_textRg', cursive;
+    font-size: xx-large;
+}
+
+.deseret {
+    font-family: 'AdamicBee', serif;
+    font-size: larger;
+}
