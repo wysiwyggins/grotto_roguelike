@@ -117,8 +117,8 @@ function createFloor(x, y) {
 
 function createWall(x, y) {
     createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}, null); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, null); // top
+    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
 function createRoom(x, y, width, height) {
@@ -145,6 +145,62 @@ function createRoom(x, y, width, height) {
     }
 }
 
+function createSimpleHallway(room1, room2) {
+    // Calculate the center of the first room
+    let center1 = {
+        x: room1.x + Math.floor(room1.width / 2),
+        y: room1.y + Math.floor(room1.height / 2)
+    };
+
+    // Calculate the center of the second room
+    let center2 = {
+        x: room2.x + Math.floor(room2.width / 2),
+        y: room2.y + Math.floor(room2.height / 2)
+    };
+
+    // Determine the start and end coordinates of the hallway
+    let startX = Math.min(center1.x, center2.x);
+    let endX = Math.max(center1.x, center2.x);
+    let startY = Math.min(center1.y, center2.y);
+    let endY = Math.max(center1.y, center2.y);
+
+    // Draw a straight horizontal hallway from the center of the first room to the center of the second room
+    for (let x = startX; x <= endX; x++) {
+
+        // Create walls above the hallway, but not within the intersecting rooms
+        if(map[center1.y - 1][x]?.value !== 157) {
+            createWall(x, center1.y - 1);
+        }
+
+        // Create walls below the hallway, but do not overlap with existing walls
+        if(map[center1.y + 1][x]?.value !== 157 && map[center1.y + 2][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 177) {
+            createWall(x, center1.y + 1);
+        } 
+        if (map[center1.y][x]?.value !== 157){
+            createSprite(x, center1.y, {x: 16, y: 7}, 157);
+        }
+        
+    }
+
+    // Draw a straight vertical hallway from the end of the horizontal hallway to the center of the second room
+    for (let y = startY; y <= endY; y++) {
+        createFloor(center2.x, y);
+
+        // Create walls to the left and right of the hallway, but not within the top intersecting room
+        if(y !== startY && map[y][center2.x - 1]?.value !== 157 && map[y - 1][center2.x - 1]?.value !== 157) {
+            createWall(center2.x - 1, y);
+        }
+        if(map[y][center2.x + 1]?.value !== 157 && map[y - 1][center2.x + 1]?.value !== 157) {
+            createWall(center2.x + 1, y);
+        }
+    }
+
+    // Extend the wall of the vertical hallway into the intersecting room
+    if(map[endY + 1][center2.x]?.value !== 157 && map[endY + 1][center2.x - 1]?.value !== 157 && endY + 1 !== room2.y + room2.height - 1) {
+        createWall(center2.x, endY + 1);
+    }
+}
+
 
 // This function will run when the spritesheet has finished loading
 function setup() {
@@ -159,9 +215,22 @@ function setup() {
     }
 
     // Generate rooms
-    createRoom(10, 10, 10, 10); // Parameters are (x, y, width, height)
-    createRoom(25, 10, 10, 10);
-    createRoom(10, 25, 10, 10);
+    let room1 = {x: 10, y: 10, width: 10, height: 10};
+    let room2 = {x: 25, y: 10, width: 10, height: 10};
+    let room3 = {x: 10, y: 25, width: 10, height: 10};
+    let room4 = {x: 25, y: 25, width: 10, height: 10}; // Additional room
+
+    // Then generate rooms
+    createRoom(room1.x, room1.y, room1.width, room1.height);
+    createRoom(room2.x, room2.y, room2.width, room2.height);
+    createRoom(room3.x, room3.y, room3.width, room3.height);
+    createRoom(room4.x, room4.y, room4.width, room4.height);
+
+
+    createSimpleHallway(room1, room2);
+    createSimpleHallway(room2, room4);
+    createSimpleHallway(room4, room3);
+    createSimpleHallway(room3, room1);
 
     // Generate the player at a random walkable position
     let walkableTiles = [];
