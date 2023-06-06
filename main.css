@@ -114,4 +114,8 @@ span.warning {
 .deseret {
   font-family: "AdamicBee", serif;
   font-size: larger;
+}
+
+body {
+  overflow: hidden;
 }/*# sourceMappingURL=main.css.map */
