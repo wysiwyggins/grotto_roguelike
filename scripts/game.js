@@ -89,6 +89,27 @@ function createSprite(x, y, position, value) {
     app.stage.addChild(sprite);
     map[y][x] = {value: value, sprite: sprite};
 }
+
+function overlaySprite(x, y, position, value) {
+    if (!map[y]) {
+        map[y] = [];
+    }
+
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        position.x * TILE_WIDTH,
+        position.y * TILE_HEIGHT,
+        TILE_WIDTH, TILE_HEIGHT));
+    
+    let sprite = new PIXI.Sprite(texture);
+    sprite.scale.set(SCALE_FACTOR);
+    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
+    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    
+    app.stage.addChild(sprite);
+    map[y][x] = {value: value, sprite: sprite};
+}
+
 function createVoid(x, y) {
     createSprite(x, y, {x: 9, y: 9}, 216);
 
@@ -118,6 +139,17 @@ function createFloor(x, y) {
 function createWall(x, y) {
     createSprite(x, y, {x: 16, y: 7}, 177); // footprint
     createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+}
+function createTransparentVerticalWall(x, y) {
+    createSprite(x, y, {x: 16, y: 5}, 131); // footprint
+    overlaySprite(x, y - 1, {x: 16, y: 5}, 157); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+}
+
+function createTransparentWall(x, y) {
+    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
+    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
@@ -171,26 +203,26 @@ function createSimpleHallway(room1, room2) {
         if(map[center1.y - 1][x]?.value !== 157) {
             createWall(x, center1.y - 1);
         }
-
-        // Create walls below the hallway, but do not overlap with existing walls
-        if(map[center1.y + 1][x]?.value !== 157 && map[center1.y + 2][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 177) {
-            createWall(x, center1.y + 1);
-        } 
-        if (map[center1.y][x]?.value !== 157){
-            createSprite(x, center1.y, {x: 16, y: 7}, 157);
-        }
+        createFloor(x,center1.y);
         
+        // Create walls below the hallway, but do not overlap with existing walls
+        if(map[center1.y + 1][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 131 && map[center1.y + 2][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 177) {
+            createTransparentWall(x, center1.y + 1);
+        } else if (map[center1.y + 1][x]?.value !== 157){
+            createTransparentVerticalWall(x, center1.y + 1);
+        }
+    
     }
 
     // Draw a straight vertical hallway from the end of the horizontal hallway to the center of the second room
     for (let y = startY; y <= endY; y++) {
-        createFloor(center2.x, y);
 
         // Create walls to the left and right of the hallway, but not within the top intersecting room
-        if(y !== startY && map[y][center2.x - 1]?.value !== 157 && map[y - 1][center2.x - 1]?.value !== 157) {
+        if(map[y][center2.x - 1]?.value !== 157 && map[y -1][center2.x - 1]?.value !== 131  && map[y - 1][center2.x - 1]?.value !== 157) {
             createWall(center2.x - 1, y);
         }
-        if(map[y][center2.x + 1]?.value !== 157 && map[y - 1][center2.x + 1]?.value !== 157) {
+        createFloor(center2.x, y);
+        if(map[y][center2.x + 1]?.value !== 157 && map[y -1][center2.x + 1]?.value !== 131 &&map[y - 1][center2.x + 1]?.value !== 157) {
             createWall(center2.x + 1, y);
         }
     }
