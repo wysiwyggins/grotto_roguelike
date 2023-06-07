@@ -22,24 +22,6 @@
 
 }
 
-@font-face {
-    font-family: "Portfolio";
-    src: url("/assets/fonts/Web437_Portfolio_6x8.woff") format("woff");
-}
-
-@font-face {
-    font-family: '18th_century_kurrent_textRg';
-    src: url('/assets/fonts/18thctrkurtxt-webfont.woff2') format('woff2'),
-         url('/assets/fonts/18thctrkurtxt-webfont.woff') format('woff');
-    font-weight: normal;
-    font-style: normal;
-
-}
-
-@font-face {
-    font-family: "AdamicBee";
-    src: url("/assets/fonts/AdamicBee.woff") format("woff");
-}
 
 
 @mixin default-header {

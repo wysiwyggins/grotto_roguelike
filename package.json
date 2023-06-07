@@ -4,6 +4,7 @@
   "description": "A turn based roguelike that connects to the Grotto multiplayer platform",
   "main": "index.js",
   "scripts": {
+    "start": "parcel index.html",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Wiley Wiggins",
@@ -12,5 +13,17 @@
     "pixi.js": "^7.2.4",
     "rot-js": "^2.2.0",
     "tmx-parser": "^1.5.0"
-  }
+  },
+  "devDependencies": {
+    "parcel-bundler": "^1.12.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wysiwyggins/grotto_roguelike.git"
+  },
+  "keywords": [],
+  "bugs": {
+    "url": "https://github.com/wysiwyggins/grotto_roguelike/issues"
+  },
+  "homepage": "https://github.com/wysiwyggins/grotto_roguelike#readme"
 }
