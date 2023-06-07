@@ -1,0 +1,108 @@
+@import url("https://fonts.googleapis.com/css2?family=Almendra+Display&display=swap");
+* {
+  box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, h6 { /*reset for mobile browsers */
+  font-weight: normal;
+}
+
+img {
+  max-width: 100%;
+  width: 100%;
+}
+
+html {
+  background-color: #f5f5ee;
+}
+
+p {
+  margin-bottom: 20px;
+  padding-left: 20px;
+}
+
+h1, h2 {
+  margin-top: 0;
+  font-size: 2em;
+}
+
+@font-face {
+  font-family: "courier_prime_coderegular";
+  src: url("/courier_prime_code-webfont.c24c9ab8.woff2") format("woff2"), url("/courier_prime_code-webfont.2e32d98c.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+@font-face {
+  font-family: "theano_didotregular";
+  src: url("/theanodidot-regular-webfont.cb4d52b2.woff2") format("woff2"), url("/theanodidot-regular-webfont.0ac3879c.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+.secret {
+  background: black;
+  color: transparent;
+  cursor: help;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+  transition: background 0.3s ease 0.2s, color 0.2s ease 0.25s;
+  word-break: break-all;
+}
+.secret:hover, .secret:active, .secret:focus {
+  color: #fff;
+  background: transparent;
+}
+
+kbd {
+  background-color: #eee;
+  border-radius: 3px;
+  border: 1px solid #b4b4b4;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2), 0 2px 0 0 rgba(255, 255, 255, 0.7) inset;
+  color: #333;
+  display: inline-block;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+body {
+  font-family: "courier_prime_coderegular", Courier, monospace;
+  font-size: 1em;
+}
+
+ul.warnings li {
+  color: rgb(255, 0, 0);
+}
+
+ul.messages li {
+  color: rgb(255, 183, 0);
+}
+
+span.message {
+  color: rgb(255, 183, 0);
+}
+
+span.warning {
+  color: rgb(255, 0, 0);
+}
+
+.small {
+  font-size: smaller;
+}
+
+/* .level-12, .kurrent {
+    font-family: '18th_century_kurrent_textRg', cursive;
+    font-size: xx-large;
+}
+
+.deseret {
+    font-family: 'AdamicBee', serif;
+    font-size: larger;
+} */
+body {
+  overflow: hidden;
+}
+
+/*# sourceMappingURL=/main.af46ece4.css.map */

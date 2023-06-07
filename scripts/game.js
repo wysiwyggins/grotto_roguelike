@@ -1,3 +1,4 @@
+const PIXI = require('pixi.js');
 const { createPlayerSprite, movePlayer } = require('./player.js');
 const { createFloor, createWall, createTransparentVerticalWall, createTransparentWall, createRoom, createSimpleHallway } = require('./map.js');
 //const { createMonsterSprite, moveMonsterSprite } = require('./sprites.js');
