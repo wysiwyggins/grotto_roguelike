@@ -6,6 +6,7 @@ let app = new PIXI.Application({
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
 });
+app.stage.sortableChildren = true;
 
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
@@ -30,39 +31,134 @@ for (let y = 0; y < MAP_HEIGHT; y++) {
 // Load the spritesheet using the global PIXI.Loader object
 PIXI.Loader.shared.add('tiles', SPRITESHEET_PATH).load(setup);
 
-function createPlayerSprite(x, y) {
-    const FOOTPRINT_SPRITE_POSITION = {x: 10, y: 5};
-    const OVERLAY_SPRITE_POSITION = {x: 1, y: 0};
+
+const PlayerType = Object.freeze({
+    "HUMAN": 0,
+    "ANIMAL": 1,
+    "GHOST": 2,
+    "ROBOT": 3,
+    "BIRD": 4,
+    "OBELISK": 5,
+    "FUNGUS": 6,
+    "VEGETABLE": 7
+});
+
+class Player {
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.footprintTile;
+        this.headTile;
+        this.sprite = null; 
+        // You can set the specific footprint and head tiles for each player type here.
+        switch(type) {
+            case PlayerType.HUMAN:
+                this.footprintPosition = {x: 10, y: 5};
+                this.headPosition = {x: 1, y: 0};
+                break;
+            case PlayerType.ANIMAL:
+                this.footprintPosition = {x: 10, y: 7}; 
+                this.headPosition = {x: 1, y: 0}; 
+                break;
+            case PlayerType.GHOST:
+                this.footprintPosition = {x: 19, y: 7}; 
+                this.headPosition = {x: 2, y: 0}; 
+                break;
+            case PlayerType.ROBOT:
+                this.footprintPosition = {x: 10, y: 5}; 
+                this.headPosition = {x: 13, y: 7}; 
+                break;
+            case PlayerType.BIRD:
+                this.footprintPosition = {x: 13, y: 7}; 
+                this.headPosition = {x: 13, y: 7}; 
+                break;
+            case PlayerType.OBELISK:
+                this.footprintPosition = {x: 6, y: 7}; 
+                this.headPosition = {x: 18, y: 8}; 
+                break;
+            case PlayerType.FUNGUS:
+                this.footprintPosition = {x: 6, y: 7}; 
+                this.headPosition = {x: 9, y: 8}; 
+                break;
+            case PlayerType.VEGETABLE:
+                this.footprintPosition = {x: 13, y: 7};
+                this.headPosition = {x: 6, y: 8};  
+                break;
+            default:
+                this.footprintPosition = {x: 10, y: 5};
+                this.headPosition = {x: 1, y: 0};
+                break;
+        }
+    }
+    move(direction) {
+        let newX = this.x;
+        let newY = this.y;
+        
+        switch(direction) {
+            case 'up':
+                console.log("up");
+                newY -= 1;
+                break;
+            case 'down':
+                console.log("down");
+                newY += 1;
+                break;
+            case 'left':
+                console.log("left");
+                newX -= 1;
+                break;
+            case 'right':
+                console.log("right");
+                newX += 1;
+                break;
+        }
+        
+        // Check for collisions or going out of bounds
+        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT) {
+            if (map[newY][newX] === 0) { // Assuming 0 is an empty tile
+                this.x = newX;
+                this.y = newY;
+            }
+        }
+        
+        // Update sprite positions
+        this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
+        this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        this.sprite.overlay.x = this.sprite.footprint.x;
+        this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
+    }
+    
+}
+
+function createPlayerSprite(player) {
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        FOOTPRINT_SPRITE_POSITION.x * TILE_WIDTH, 
-        FOOTPRINT_SPRITE_POSITION.y * TILE_HEIGHT, 
+        player.footprintPosition.x * TILE_WIDTH, 
+        player.footprintPosition.y * TILE_HEIGHT, 
         TILE_WIDTH, TILE_HEIGHT));
-
     let spriteFootprint = new PIXI.Sprite(footprintTexture);
     spriteFootprint.scale.set(SCALE_FACTOR);
-    
+    spriteFootprint.zIndex = 2;
 
-    // Create the overlay sprite
     let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        OVERLAY_SPRITE_POSITION.x * TILE_WIDTH, 
-        OVERLAY_SPRITE_POSITION.y * TILE_HEIGHT, 
+        player.headPosition.x * TILE_WIDTH, 
+        player.headPosition.y * TILE_HEIGHT, 
         TILE_WIDTH, TILE_HEIGHT));
     let spriteOverlay = new PIXI.Sprite(overlayTexture);
     spriteOverlay.scale.set(SCALE_FACTOR);
+    spriteOverlay.zIndex = 1;
 
-    //character tiles positions
-    spriteFootprint.x = x * TILE_WIDTH * SCALE_FACTOR;
-    spriteFootprint.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    spriteFootprint.x = player.x * TILE_WIDTH * SCALE_FACTOR;
+    spriteFootprint.y = player.y * TILE_HEIGHT * SCALE_FACTOR;
     spriteOverlay.x = spriteFootprint.x;
     spriteOverlay.y = spriteFootprint.y - TILE_HEIGHT * SCALE_FACTOR;
 
-    // Add both sprites to the stage
     app.stage.addChild(spriteFootprint);
     app.stage.addChild(spriteOverlay);
 
-    // Store sprites for movement
-    playerSprite = { footprint: spriteFootprint, overlay: spriteOverlay };
+    player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
+
 }
 
 function createSprite(x, y, position, value) {
@@ -141,6 +237,7 @@ function createWall(x, y) {
     createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
+
 function createTransparentVerticalWall(x, y) {
     createSprite(x, y, {x: 16, y: 5}, 131); // footprint
     overlaySprite(x, y - 1, {x: 16, y: 5}, 157); // middle
@@ -157,22 +254,22 @@ function createRoom(x, y, width, height) {
     // Create the floor
     for (let i = x + 1; i < x + width - 1; i++) {
         for (let j = y + 1; j < y + height - 1; j++) {
-            console.log(`Creating floor at ${i}, ${j}`); // <-- Console log added
+            //console.log(`Creating floor at ${i}, ${j}`); // <-- Console log added
             createFloor(i, j);
         }
     }
 
     // Create the walls
     for (let i = x; i < x + width; i++) {
-        console.log(`Creating top wall at ${i}, ${y}`); // <-- Console log added
+        //console.log(`Creating top wall at ${i}, ${y}`); // <-- Console log added
         createWall(i, y); // Top wall
-        console.log(`Creating bottom wall at ${i}, ${y + height - 1}`); // <-- Console log added
+        //console.log(`Creating bottom wall at ${i}, ${y + height - 1}`); // <-- Console log added
         createWall(i, y + height - 1); // Bottom wall
     }
     for (let j = y; j < y + height; j++) {
-        console.log(`Creating left wall at ${x}, ${j}`); // <-- Console log added
+        //console.log(`Creating left wall at ${x}, ${j}`); // <-- Console log added
         createWall(x, j); // Left wall
-        console.log(`Creating right wall at ${x + width - 1}, ${j}`); // <-- Console log added
+        //console.log(`Creating right wall at ${x + width - 1}, ${j}`); // <-- Console log added
         createWall(x + width - 1, j); // Right wall
     }
 }
@@ -236,8 +333,6 @@ function createSimpleHallway(room1, room2) {
 
 // This function will run when the spritesheet has finished loading
 function setup() {
-    
-   
 
     // Fill the map with void
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -262,9 +357,6 @@ function setup() {
     createSimpleHallway(room1, room2);
     createSimpleHallway(room2, room4);
     createSimpleHallway(room4, room3);
-    createSimpleHallway(room3, room1);
-
-    // Generate the player at a random walkable position
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -275,58 +367,27 @@ function setup() {
     }
 
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-    createPlayerSprite(randomTile.x, randomTile.y);
 
-    function movePlayer(dx, dy) {
-        let newX = playerSprite.footprint.x / (TILE_WIDTH * SCALE_FACTOR) + dx;
-        let newY = playerSprite.footprint.y / (TILE_HEIGHT * SCALE_FACTOR) + dy;
+    let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y);
+    createPlayerSprite(player);
     
-        // Check if the new position is within the map bounds and is a floor tile
-        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT && map[newY][newX]?.value === 157) {
-            console.log(`Moving player to ${newX}, ${newY}`); // <-- Console log added
-            playerSprite.footprint.x += dx * TILE_WIDTH * SCALE_FACTOR;
-            playerSprite.footprint.y += dy * TILE_HEIGHT * SCALE_FACTOR;
-            playerSprite.overlay.x += dx * TILE_WIDTH * SCALE_FACTOR;
-            playerSprite.overlay.y += dy * TILE_HEIGHT * SCALE_FACTOR;
-        } else {
-            console.log(`Blocked movement to ${newX}, ${newY}. Tile type: ${map[newY]?.[newX]?.value || 'Out of bounds'}`); // <-- Console log added
-        }
-    
-        app.stage.children.sort((a, b) => {
-            // Fetch the actual y position for comparison
-            let ay = a === playerSprite.overlay ? playerSprite.footprint.y : a.y;
-            let by = b === playerSprite.overlay ? playerSprite.footprint.y : b.y;
-        
-            if (ay === by) {
-                // Fetch the actual x position for comparison
-                let ax = a === playerSprite.overlay ? playerSprite.footprint.x : a.x;
-                let bx = b === playerSprite.overlay ? playerSprite.footprint.x : b.x;
-        
-                return ax - bx;
-            }
-            return ay - by;
-        });
-    }
-    
-
-    // Listen for keyboard input
-    window.addEventListener("keydown", function(event) {
-        switch(event.key) {
+    window.addEventListener('keydown', function(event) {
+        switch (event.key) {
             case 'ArrowUp':
-                movePlayer(0, -1);
+                player.move('up');
                 break;
             case 'ArrowDown':
-                movePlayer(0, 1);
+                player.move('down');
                 break;
             case 'ArrowLeft':
-                movePlayer(-1, 0);
+                player.move('left');
                 break;
             case 'ArrowRight':
-                movePlayer(1, 0);
+                player.move('right');
                 break;
             default:
                 break;
         }
     });
-
+    
 }
