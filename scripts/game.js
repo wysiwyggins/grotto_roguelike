@@ -92,42 +92,45 @@ class Player {
         }
     }
     move(direction) {
-        let newX = this.x;
-        let newY = this.y;
-        
+        // Convert player's tile position to pixel position
+        let newX = this.x * TILE_WIDTH * SCALE_FACTOR;
+        let newY = this.y * TILE_HEIGHT * SCALE_FACTOR;
+    
+        // Calculate direction of movement in pixels
         switch(direction) {
             case 'up':
-                console.log("up");
-                newY -= 1;
+                newY -= TILE_HEIGHT * SCALE_FACTOR;
                 break;
             case 'down':
-                console.log("down");
-                newY += 1;
+                newY += TILE_HEIGHT * SCALE_FACTOR;
                 break;
             case 'left':
-                console.log("left");
-                newX -= 1;
+                newX -= TILE_WIDTH * SCALE_FACTOR;
                 break;
             case 'right':
-                console.log("right");
-                newX += 1;
+                newX += TILE_WIDTH * SCALE_FACTOR;
                 break;
         }
-        
+    
+        // Convert the new pixel position back to tile position for collision checking
+        let newTileX = newX / (TILE_WIDTH * SCALE_FACTOR);
+        let newTileY = newY / (TILE_HEIGHT * SCALE_FACTOR);
+    
         // Check for collisions or going out of bounds
-        if (newX >= 0 && newX < MAP_WIDTH && newY >= 0 && newY < MAP_HEIGHT) {
-            if (map[newY][newX] === 0) { // Assuming 0 is an empty tile
-                this.x = newX;
-                this.y = newY;
+        if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
+            if (map[newTileY][newTileX]?.value === 157) {
+                this.x = newTileX;
+                this.y = newTileY;
             }
         }
-        
+    
         // Update sprite positions
         this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
         this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
         this.sprite.overlay.x = this.sprite.footprint.x;
         this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
     }
+    
     
 }
 
@@ -357,6 +360,7 @@ function setup() {
     createSimpleHallway(room1, room2);
     createSimpleHallway(room2, room4);
     createSimpleHallway(room4, room3);
+    createSimpleHallway(room3, room1);
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
