@@ -19,6 +19,8 @@ const MAP_HEIGHT = 38;
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
+const SPRITESHEET_COLUMNS = 23;
+const SPRITESHEET_ROWS = 11;
 
 let map = new Array(MAP_HEIGHT);
 for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -134,6 +136,8 @@ class Player {
     
 }
 
+
+
 function createPlayerSprite(player) {
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
@@ -162,6 +166,51 @@ function createPlayerSprite(player) {
 
     player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
 
+}
+
+
+class NPC {
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.sprite = null;
+
+        // You can set the specific attributes for each NPC type here.
+        switch(type) {
+            // Add cases for your NPC types here.
+            default:
+                // Add default attributes here.
+                break;
+        }
+    }
+
+    // NPCs can have their own behaviors and methods here.
+    move() {
+        // Implement NPC movement logic here.
+    }
+}
+
+class Item {
+    constructor(type, x, y) {
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.sprite = null;
+
+        // You can set the specific attributes for each Item type here.
+        switch(type) {
+            // Add cases for your Item types here.
+            default:
+                // Add default attributes here.
+                break;
+        }
+    }
+
+    // Items can have their own behaviors and methods here.
+    use() {
+        // Implement item use logic here.
+    }
 }
 
 function createSprite(x, y, position, value) {
@@ -394,4 +443,64 @@ function setup() {
         }
     });
     
+}
+
+
+
+/// UI functions
+
+function drawUIBox(message) {
+    const BOX_HEIGHT = 5;
+    const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
+    const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
+    const BORDER_VERTICAL = { x: 17, y: 7 }; 
+    const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
+    const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
+    const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
+    const BLANK_TILE = { x: 0, y: 0};
+
+    // Draw the top border of the box
+    createSprite(0, 0, BORDER_TOP_LEFT, 214);
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        createSprite(x, 0, BORDER_HORIZONTAL, 196);
+    }
+    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 191);
+
+    // Draw the bottom border of the box
+    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 192);
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 196);
+    }
+    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 217);
+
+    // Draw the vertical borders and the message
+    for (let y = 1; y < BOX_HEIGHT - 1; y++) {
+        createSprite(0, y, BORDER_VERTICAL, 179);
+        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 179);
+        for(let x = 1; x < MAP_WIDTH - 1; x++) {
+            createSprite(x, y, BLANK_TILE, 0);
+        }
+        // Write the message
+        if (y === Math.floor(BOX_HEIGHT / 2)) {
+            for (let i = 0; i < message.length; i++) {
+                let spriteLocation = charToSpriteLocation(message.charAt(i));
+                createSprite(i + 1, y, spriteLocation, message.charCodeAt(i));
+            }
+        }
+    }
+}
+
+function charToSpriteLocation(char) {
+    let charCode = char.charCodeAt(0);
+    let tileNumber = charCode; 
+    let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
+    let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
+    
+    if(spriteColumn >= SPRITESHEET_COLUMNS) {
+        spriteColumn = 0;
+        spriteRow++;
+    }
+
+    console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
+    return { x: spriteColumn, y: spriteRow };
 }
