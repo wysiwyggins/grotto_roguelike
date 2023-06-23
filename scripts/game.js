@@ -193,13 +193,6 @@ class NPC {
 
 //items
 
-const ItemType = {
-    WEAPON: "weapon",
-    POTION: "potion",
-    ARMOR: "armor",
-    // add more item types here
-};
-
 class AbstractItem {
     constructor(pk, name, description, itemType, activeAdjective, iconData, activeIconData) {
         this.pk = pk;
