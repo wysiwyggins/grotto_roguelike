@@ -191,14 +191,37 @@ class NPC {
     }
 }
 
-class Item {
-    constructor(type, x, y) {
-        this.type = type;
-        this.x = x;
-        this.y = y;
-        this.sprite = null;
+//items
 
-        // You can set the specific attributes for each Item type here.
+const ItemType = {
+    WEAPON: "weapon",
+    POTION: "potion",
+    ARMOR: "armor",
+    // add more item types here
+};
+
+class AbstractItem {
+    constructor(pk, name, description, itemType, activeAdjective, iconData, activeIconData) {
+        this.pk = pk;
+        this.name = name;
+        this.description = description;
+        this.itemType = itemType;
+        this.activeAdjective = activeAdjective;
+        this.iconData = iconData;
+        this.activeIconData = activeIconData;
+    }
+}
+
+class Item {
+    constructor(abstractItem, pk, name, colorName, colorHex, isActive, isUsable, isTakeable) {
+        this.AbstractItem = abstractItem;
+        this.pk = pk;
+        this.name = name;
+        this.colorName = colorName;
+        this.colorHex = colorHex;
+        this.isActive = isActive;
+        this.isUsable = isUsable;
+        this.isTakeable = isTakeable;
         switch(type) {
             // Add cases for your Item types here.
             default:
@@ -207,11 +230,12 @@ class Item {
         }
     }
 
-    // Items can have their own behaviors and methods here.
     use() {
         // Implement item use logic here.
     }
 }
+
+
 
 function createSprite(x, y, position, value) {
     if (!map[y]) {
