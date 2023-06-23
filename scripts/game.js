@@ -383,6 +383,96 @@ function createSimpleHallway(room1, room2) {
 }
 
 
+/// UI functions
+
+function drawUIBox(message) {
+    const BOX_HEIGHT = 5;
+    const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
+    const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
+    const BORDER_VERTICAL = { x: 17, y: 7 }; 
+    const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
+    const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
+    const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
+    const BLANK_TILE = { x: 0, y: 0};
+
+    // Draw the top border of the box
+    createSprite(0, 0, BORDER_TOP_LEFT, 214);
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        createSprite(x, 0, BORDER_HORIZONTAL, 196);
+    }
+    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 191);
+
+    // Draw the bottom border of the box
+    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 192);
+    for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 196);
+    }
+    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 217);
+
+    // Draw the vertical borders and the message
+    for (let y = 1; y < BOX_HEIGHT - 1; y++) {
+        createSprite(0, y, BORDER_VERTICAL, 179);
+        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 179);
+        for(let x = 1; x < MAP_WIDTH - 1; x++) {
+            createSprite(x, y, BLANK_TILE, 0);
+        }
+        // Write the message
+        if (y === Math.floor(BOX_HEIGHT / 2)) {
+            for (let i = 0; i < message.length; i++) {
+                let spriteLocation = charToSpriteLocation(message.charAt(i));
+                createSprite(i + 1, y, spriteLocation, message.charCodeAt(i));
+            }
+        }
+    }
+}
+
+function charToSpriteLocation(char) {
+    let charCode = char.charCodeAt(0);
+    let tileNumber = charCode; 
+    let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
+    let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
+    
+    if(spriteColumn >= SPRITESHEET_COLUMNS) {
+        spriteColumn = 0;
+        spriteRow++;
+    }
+
+    console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
+    return { x: spriteColumn, y: spriteRow };
+}
+
+class MessageList {
+    constructor() {
+        this.messages = ["Welcome to the Dungeon of Doom!"];
+        this.active = true;
+    }
+    
+    // Adds a message to the list
+    addMessage(message) {
+        this.messages.push(message);
+    }
+    
+    // Toggles the active state
+    toggleActive() {
+        this.active = !this.active;
+    }
+
+    // Renders the text box with the last two messages
+    render() {
+        if (this.active && this.messages.length > 0) {
+            // Extract the last two messages
+            const lastMessages = this.messages.slice(-2);
+            const messageToShow = lastMessages.join(' ');
+
+            // Call the drawUIBox function to draw the message box
+            drawUIBox(messageToShow);
+        }
+    }
+}
+
+
+
+
 // This function will run when the spritesheet has finished loading
 function setup() {
 
@@ -442,65 +532,7 @@ function setup() {
                 break;
         }
     });
-    
-}
 
-
-
-/// UI functions
-
-function drawUIBox(message) {
-    const BOX_HEIGHT = 5;
-    const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
-    const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
-    const BORDER_VERTICAL = { x: 17, y: 7 }; 
-    const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
-    const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
-    const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
-    const BLANK_TILE = { x: 0, y: 0};
-
-    // Draw the top border of the box
-    createSprite(0, 0, BORDER_TOP_LEFT, 214);
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, 0, BORDER_HORIZONTAL, 196);
-    }
-    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 191);
-
-    // Draw the bottom border of the box
-    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 192);
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 196);
-    }
-    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 217);
-
-    // Draw the vertical borders and the message
-    for (let y = 1; y < BOX_HEIGHT - 1; y++) {
-        createSprite(0, y, BORDER_VERTICAL, 179);
-        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 179);
-        for(let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, y, BLANK_TILE, 0);
-        }
-        // Write the message
-        if (y === Math.floor(BOX_HEIGHT / 2)) {
-            for (let i = 0; i < message.length; i++) {
-                let spriteLocation = charToSpriteLocation(message.charAt(i));
-                createSprite(i + 1, y, spriteLocation, message.charCodeAt(i));
-            }
-        }
-    }
-}
-
-function charToSpriteLocation(char) {
-    let charCode = char.charCodeAt(0);
-    let tileNumber = charCode; 
-    let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
-    let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
-    
-    if(spriteColumn >= SPRITESHEET_COLUMNS) {
-        spriteColumn = 0;
-        spriteRow++;
-    }
-
-    console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
-    return { x: spriteColumn, y: spriteRow };
+    const messageList = new MessageList();
+    messageList.render();
 }
