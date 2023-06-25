@@ -6,6 +6,7 @@ let app = new PIXI.Application({
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
 });
+let player; 
 app.stage.sortableChildren = true;
 
 // Add the app view to our HTML document
@@ -319,85 +320,187 @@ function createTransparentWall(x, y) {
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
-function createRoom(x, y, width, height) {
-    // Create the floor
-    for (let i = x + 1; i < x + width - 1; i++) {
-        for (let j = y + 1; j < y + height - 1; j++) {
-            //console.log(`Creating floor at ${i}, ${j}`); // <-- Console log added
-            createFloor(i, j);
-        }
+function createVoid(x, y) {
+    createSprite(x, y, {x: 9, y: 9}, 216);
+
+    let sprite = map[y][x].sprite;
+
+    // Set the transformation origin to the center of the sprite
+    sprite.anchor.set(0.5, 0.5);
+
+    // Randomly flip the sprite horizontally or vertically
+    let randomFlip = Math.random(); // Generates a random number between 0 (inclusive) and 1 (exclusive)
+    if (randomFlip < 0.25) {
+        sprite.scale.x *= -1; // Flip horizontally
+    } else if (randomFlip < 0.5) {
+        sprite.scale.y *= -1; // Flip vertically
     }
 
-    // Create the walls
-    for (let i = x; i < x + width; i++) {
-        //console.log(`Creating top wall at ${i}, ${y}`); // <-- Console log added
-        createWall(i, y); // Top wall
-        //console.log(`Creating bottom wall at ${i}, ${y + height - 1}`); // <-- Console log added
-        createWall(i, y + height - 1); // Bottom wall
+    // Adjust sprite's position due to anchor change
+    sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
+    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
+}
+
+
+function createFloor(x, y) {
+    createSprite(x, y, {x: 19, y: 6}, 157);
+}
+
+function createWall(x, y) {
+    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
+    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+}
+
+function createTransparentVerticalWall(x, y) {
+    createSprite(x, y, {x: 16, y: 5}, 131); // footprint
+    overlaySprite(x, y - 1, {x: 16, y: 5}, 157); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+}
+
+function createTransparentWall(x, y) {
+    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
+    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+}
+
+class Room {
+    constructor(pk, name, colorName, colorHex, description, exits, x, y, width, height) {
+        this.pk = pk;
+        this.name = name;
+        this.colorName = colorName;
+        this.colorHex = colorHex;
+        this.description = description;
+        this.exits = exits;
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
     }
-    for (let j = y; j < y + height; j++) {
-        //console.log(`Creating left wall at ${x}, ${j}`); // <-- Console log added
-        createWall(x, j); // Left wall
-        //console.log(`Creating right wall at ${x + width - 1}, ${j}`); // <-- Console log added
-        createWall(x + width - 1, j); // Right wall
+
+    createRoom() {
+        // Create the floor
+        for (let i = this.x + 1; i <= this.x + this.width - 2; i++) {
+            for (let j = this.y + 1; j < this.y + this.height - 1; j++) {
+                createFloor(i, j);
+            }
+        }
+
+        // Create the walls
+        for (let i = this.x; i < this.x + this.width; i++) {
+            createWall(i, this.y); // Top wall
+            createWall(i, this.y + this.height - 1); // Bottom wall
+        }
+        for (let j = this.y; j < this.y + this.height; j++) {
+            createWall(this.x, j); // Left wall
+            createWall(this.x + this.width - 1, j); // Right wall
+        }
     }
 }
 
-function createSimpleHallway(room1, room2) {
-    // Calculate the center of the first room
+
+function isPointInRoom(x, y, room) {
+    return x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height;
+}
+
+function createHallway(room1, room2) {
     let center1 = {
         x: room1.x + Math.floor(room1.width / 2),
         y: room1.y + Math.floor(room1.height / 2)
     };
 
-    // Calculate the center of the second room
     let center2 = {
         x: room2.x + Math.floor(room2.width / 2),
         y: room2.y + Math.floor(room2.height / 2)
     };
 
-    // Determine the start and end coordinates of the hallway
     let startX = Math.min(center1.x, center2.x);
     let endX = Math.max(center1.x, center2.x);
     let startY = Math.min(center1.y, center2.y);
     let endY = Math.max(center1.y, center2.y);
 
-    // Draw a straight horizontal hallway from the center of the first room to the center of the second room
     for (let x = startX; x <= endX; x++) {
+        if (!isPointInRoom(x, center1.y, room1) && !isPointInRoom(x, center1.y, room2)) {
+            createFloor(x, center1.y);
+            
+            // Create walls above the hallway, but not within the intersecting rooms
+            if (map[center1.y - 1][x]?.value !== 157) {
+                createWall(x, center1.y - 1);
+            }
 
-        // Create walls above the hallway, but not within the intersecting rooms
-        if(map[center1.y - 1][x]?.value !== 157) {
-            createWall(x, center1.y - 1);
+            // Create walls below the hallway, but do not overlap with existing walls
+            if (map[center1.y + 1][x]?.value !== 157) {
+                createTransparentWall(x, center1.y + 1);
+            }
+        } else {
+            // Create entryway by removing a wall tile and replacing it with a floor tile
+            if (map[center1.y - 1][x]?.value === 157) {
+                createFloor(x, center1.y - 1);
+            }
         }
-        createFloor(x,center1.y);
-        
-        // Create walls below the hallway, but do not overlap with existing walls
-        if(map[center1.y + 1][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 131 && map[center1.y + 2][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 177) {
-            createTransparentWall(x, center1.y + 1);
-        } else if (map[center1.y + 1][x]?.value !== 157){
-            createTransparentVerticalWall(x, center1.y + 1);
-        }
-    
     }
 
-    // Draw a straight vertical hallway from the end of the horizontal hallway to the center of the second room
     for (let y = startY; y <= endY; y++) {
+        if (!isPointInRoom(center2.x, y, room1) && !isPointInRoom(center2.x, y, room2)) {
+            createFloor(center2.x, y);
 
-        // Create walls to the left and right of the hallway, but not within the top intersecting room
-        if(map[y][center2.x - 1]?.value !== 157 && map[y -1][center2.x - 1]?.value !== 131  && map[y - 1][center2.x - 1]?.value !== 157) {
-            createWall(center2.x - 1, y);
-        }
-        createFloor(center2.x, y);
-        if(map[y][center2.x + 1]?.value !== 157 && map[y -1][center2.x + 1]?.value !== 131 &&map[y - 1][center2.x + 1]?.value !== 157) {
-            createWall(center2.x + 1, y);
+            // Create walls to the left and right of the hallway, but not within the intersecting rooms
+            if (map[y][center2.x - 1]?.value !== 157) {
+                createWall(center2.x - 1, y);
+            }
+            if (map[y][center2.x + 1]?.value !== 157) {
+                createWall(center2.x + 1, y);
+            }
+        } else {
+            // Create entryway by removing a wall tile and replacing it with a floor tile
+            if (map[y][center2.x - 1]?.value === 157) {
+                createFloor(center2.x - 1, y);
+            }
         }
     }
 
-    // Extend the wall of the vertical hallway into the intersecting room
-    if(map[endY + 1][center2.x]?.value !== 157 && map[endY + 1][center2.x - 1]?.value !== 157 && endY + 1 !== room2.y + room2.height - 1) {
-        createWall(center2.x, endY + 1);
+    // Check if the index is within bounds before accessing map
+    if (endY + 1 < map.length && center2.x < map[endY + 1].length) {
+        // Extend the wall of the vertical hallway into the intersecting room
+        if (map[endY + 1][center2.x]?.value !== 157 && map[endY + 1][center2.x - 1]?.value !== 157 && endY + 1 !== room2.y + room2.height - 1) {
+            createWall(center2.x, endY + 1);
+        }
     }
 }
+
+function generateDungeon(width, height) {
+    let options = {
+        roomWidth: [5, 20],
+        roomHeight: [5, 20]
+    };
+
+    let dungeonMap = new ROT.Map.Uniform(width, height, options);
+    let rooms = [];
+    let pkCounter = 1; // Counter for primary key
+
+    // Step 1: Generate rooms
+    dungeonMap.create();
+    
+    // Get generated rooms
+    let createdRooms = dungeonMap.getRooms();
+    for (let i = 0; i < createdRooms.length; i++) {
+        let room = createdRooms[i];
+        let customRoom = new Room(pkCounter, 'Room' + pkCounter, 'colorName', '#FFFFFF', 'This is a room.', [], room._x1, room._y1, room._x2 - room._x1 + 1, room._y2 - room._y1 + 1);
+        customRoom.createRoom();
+        rooms.push(customRoom);
+        pkCounter++;
+    }
+
+    // Step 2: Create hallways and entrances into rooms
+    for (let i = 0; i < rooms.length - 1; i++) {
+        createHallway(rooms[i], rooms[i + 1]);
+    }
+    
+    return rooms; // Returns an array of Room objects
+}
+
+
+
 
 
 /// UI functions
@@ -454,7 +557,7 @@ function charToSpriteLocation(char) {
         spriteRow++;
     }
 
-    console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
+    //console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
     return { x: spriteColumn, y: spriteRow };
 }
 
@@ -500,23 +603,9 @@ function setup() {
         }
     }
 
-    // Generate rooms
-    let room1 = {x: 10, y: 10, width: 10, height: 10};
-    let room2 = {x: 25, y: 10, width: 10, height: 10};
-    let room3 = {x: 10, y: 25, width: 10, height: 10};
-    let room4 = {x: 25, y: 25, width: 10, height: 10}; // Additional room
+    generateDungeon(MAP_WIDTH, MAP_HEIGHT);
+    console.log(map);
 
-    // Then generate rooms
-    createRoom(room1.x, room1.y, room1.width, room1.height);
-    createRoom(room2.x, room2.y, room2.width, room2.height);
-    createRoom(room3.x, room3.y, room3.width, room3.height);
-    createRoom(room4.x, room4.y, room4.width, room4.height);
-
-
-    createSimpleHallway(room1, room2);
-    createSimpleHallway(room2, room4);
-    createSimpleHallway(room4, room3);
-    createSimpleHallway(room3, room1);
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -526,10 +615,15 @@ function setup() {
         }
     }
 
-    let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomIndex = Math.floor(Math.random() * walkableTiles.length);
+    let randomTile = walkableTiles[randomIndex];
 
-    let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y);
-    createPlayerSprite(player);
+    if (randomTile) {
+        player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y);
+        createPlayerSprite(player);
+    } else {
+        console.error('No walkable tile found');
+    }
     
     window.addEventListener('keydown', function(event) {
         switch (event.key) {
