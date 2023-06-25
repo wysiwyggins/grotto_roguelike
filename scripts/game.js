@@ -15,8 +15,8 @@ document.getElementById('game').appendChild(app.view);
 // Set up some constants
 const TILE_WIDTH = 40;
 const TILE_HEIGHT = 30;
-const MAP_WIDTH = 60;
-const MAP_HEIGHT = 38;
+const MAP_WIDTH = 80;
+const MAP_HEIGHT = 60;
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
@@ -401,6 +401,13 @@ class Room {
 
 function isPointInRoom(x, y, room) {
     return x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height;
+}
+
+function getCenterOfRoom(room) {
+    return {
+        x: room.x + Math.floor(room.width / 2),
+        y: room.y + Math.floor(room.height / 2)
+    };
 }
 
 function createHallway(room1, room2) {
