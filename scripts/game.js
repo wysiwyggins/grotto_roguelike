@@ -404,69 +404,52 @@ function isPointInRoom(x, y, room) {
 }
 
 function createHallway(room1, room2) {
-    let center1 = {
-        x: room1.x + Math.floor(room1.width / 2),
-        y: room1.y + Math.floor(room1.height / 2)
-    };
+    let point1 = getCenterOfRoom(room1);
+    let point2 = getCenterOfRoom(room2);
 
-    let center2 = {
-        x: room2.x + Math.floor(room2.width / 2),
-        y: room2.y + Math.floor(room2.height / 2)
-    };
+    let horizontalDirection = point1.x < point2.x ? 1 : -1;
+    let verticalDirection = point1.y < point2.y ? 1 : -1;
 
-    let startX = Math.min(center1.x, center2.x);
-    let endX = Math.max(center1.x, center2.x);
-    let startY = Math.min(center1.y, center2.y);
-    let endY = Math.max(center1.y, center2.y);
+    let currentPosition = { x: point1.x, y: point1.y };
 
-    for (let x = startX; x <= endX; x++) {
-        if (!isPointInRoom(x, center1.y, room1) && !isPointInRoom(x, center1.y, room2)) {
-            createFloor(x, center1.y);
-            
-            // Create walls above the hallway, but not within the intersecting rooms
-            if (map[center1.y - 1][x]?.value !== 157) {
-                createWall(x, center1.y - 1);
-            }
+    while (currentPosition.x !== point2.x) {
+        currentPosition.x += horizontalDirection;
 
-            // Create walls below the hallway, but do not overlap with existing walls
-            if (map[center1.y + 1][x]?.value !== 157) {
-                createTransparentWall(x, center1.y + 1);
-            }
-        } else {
-            // Create entryway by removing a wall tile and replacing it with a floor tile
-            if (map[center1.y - 1][x]?.value === 157) {
-                createFloor(x, center1.y - 1);
-            }
+        createFloor(currentPosition.x, currentPosition.y);
+
+        // Create walls above the hallway, but not within the intersecting rooms
+        if(map[currentPosition.y - 1][currentPosition.x]?.value !== 157) {
+            createWall(currentPosition.x, currentPosition.y - 1);
+        }
+        
+        // Create walls below the hallway, but do not overlap with existing walls
+        if(map[currentPosition.y + 1][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x]?.value !== 131 && map[currentPosition.y + 2][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x]?.value !== 177) {
+            createTransparentWall(currentPosition.x, currentPosition.y + 1);
+        } else if (map[currentPosition.y + 1][currentPosition.x]?.value !== 157){
+            createTransparentVerticalWall(currentPosition.x, currentPosition.y + 1);
         }
     }
 
-    for (let y = startY; y <= endY; y++) {
-        if (!isPointInRoom(center2.x, y, room1) && !isPointInRoom(center2.x, y, room2)) {
-            createFloor(center2.x, y);
+    while (currentPosition.y !== point2.y) {
+        currentPosition.y += verticalDirection;
 
-            // Create walls to the left and right of the hallway, but not within the intersecting rooms
-            if (map[y][center2.x - 1]?.value !== 157) {
-                createWall(center2.x - 1, y);
-            }
-            if (map[y][center2.x + 1]?.value !== 157) {
-                createWall(center2.x + 1, y);
-            }
-        } else {
-            // Create entryway by removing a wall tile and replacing it with a floor tile
-            if (map[y][center2.x - 1]?.value === 157) {
-                createFloor(center2.x - 1, y);
-            }
+        createFloor(currentPosition.x, currentPosition.y);
+
+        // Create walls to the left and right of the hallway, but not within the top intersecting room
+        if(map[currentPosition.y][currentPosition.x - 1]?.value !== 157 && map[currentPosition.y - 1][currentPosition.x - 1]?.value !== 131  && map[currentPosition.y - 1][currentPosition.x - 1]?.value !== 157) {
+            createWall(currentPosition.x - 1, currentPosition.y);
+        }
+        if(map[currentPosition.y][currentPosition.x + 1]?.value !== 157 && map[currentPosition.y - 1][currentPosition.x + 1]?.value !== 131 && map[currentPosition.y - 1][currentPosition.x + 1]?.value !== 157) {
+            createWall(currentPosition.x + 1, currentPosition.y);
         }
     }
 
-    // Check if the index is within bounds before accessing map
-    if (endY + 1 < map.length && center2.x < map[endY + 1].length) {
-        // Extend the wall of the vertical hallway into the intersecting room
-        if (map[endY + 1][center2.x]?.value !== 157 && map[endY + 1][center2.x - 1]?.value !== 157 && endY + 1 !== room2.y + room2.height - 1) {
-            createWall(center2.x, endY + 1);
-        }
+    // Extend the wall of the vertical hallway into the intersecting room
+    if(map[currentPosition.y + 1][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x - 1]?.value !== 157 && currentPosition.y + 1 !== room2.y + room2.height - 1) {
+        createWall(currentPosition.x, currentPosition.y + 1);
     }
 }
+
 
 function generateDungeon(width, height) {
     let options = {
