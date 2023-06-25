@@ -410,87 +410,75 @@ function getCenterOfRoom(room) {
     };
 }
 
-function createHallway(room1, room2) {
-    let point1 = getCenterOfRoom(room1);
-    let point2 = getCenterOfRoom(room2);
-
-    let horizontalDirection = point1.x < point2.x ? 1 : -1;
-    let verticalDirection = point1.y < point2.y ? 1 : -1;
-
-    let currentPosition = { x: point1.x, y: point1.y };
-
-    while (currentPosition.x !== point2.x) {
-        currentPosition.x += horizontalDirection;
-
-        createFloor(currentPosition.x, currentPosition.y);
-
-        // Create walls above the hallway, but not within the intersecting rooms
-        if(map[currentPosition.y - 1][currentPosition.x]?.value !== 157) {
-            createWall(currentPosition.x, currentPosition.y - 1);
+function generateVisualWalls() {
+    for (let x = 0; x < MAP_WIDTH; x++) {
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            if (isFloorTile(x, y)) {
+                createVisualWallsAround(x, y);
+            }
         }
-        
-        // Create walls below the hallway, but do not overlap with existing walls
-        if(map[currentPosition.y + 1][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x]?.value !== 131 && map[currentPosition.y + 2][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x]?.value !== 177) {
-            createTransparentWall(currentPosition.x, currentPosition.y + 1);
-        } else if (map[currentPosition.y + 1][currentPosition.x]?.value !== 157){
-            createTransparentVerticalWall(currentPosition.x, currentPosition.y + 1);
-        }
-    }
-
-    while (currentPosition.y !== point2.y) {
-        currentPosition.y += verticalDirection;
-
-        createFloor(currentPosition.x, currentPosition.y);
-
-        // Create walls to the left and right of the hallway, but not within the top intersecting room
-        if(map[currentPosition.y][currentPosition.x - 1]?.value !== 157 && map[currentPosition.y - 1][currentPosition.x - 1]?.value !== 131  && map[currentPosition.y - 1][currentPosition.x - 1]?.value !== 157) {
-            createWall(currentPosition.x - 1, currentPosition.y);
-        }
-        if(map[currentPosition.y][currentPosition.x + 1]?.value !== 157 && map[currentPosition.y - 1][currentPosition.x + 1]?.value !== 131 && map[currentPosition.y - 1][currentPosition.x + 1]?.value !== 157) {
-            createWall(currentPosition.x + 1, currentPosition.y);
-        }
-    }
-
-    // Extend the wall of the vertical hallway into the intersecting room
-    if(map[currentPosition.y + 1][currentPosition.x]?.value !== 157 && map[currentPosition.y + 1][currentPosition.x - 1]?.value !== 157 && currentPosition.y + 1 !== room2.y + room2.height - 1) {
-        createWall(currentPosition.x, currentPosition.y + 1);
     }
 }
 
-
-function generateDungeon(width, height) {
-    let options = {
-        roomWidth: [5, 20],
-        roomHeight: [5, 20]
-    };
-
-    let dungeonMap = new ROT.Map.Uniform(width, height, options);
-    let rooms = [];
-    let pkCounter = 1; // Counter for primary key
-
-    // Step 1: Generate rooms
-    dungeonMap.create();
-    
-    // Get generated rooms
-    let createdRooms = dungeonMap.getRooms();
-    for (let i = 0; i < createdRooms.length; i++) {
-        let room = createdRooms[i];
-        let customRoom = new Room(pkCounter, 'Room' + pkCounter, 'colorName', '#FFFFFF', 'This is a room.', [], room._x1, room._y1, room._x2 - room._x1 + 1, room._y2 - room._y1 + 1);
-        customRoom.createRoom();
-        rooms.push(customRoom);
-        pkCounter++;
-    }
-
-    // Step 2: Create hallways and entrances into rooms
-    for (let i = 0; i < rooms.length - 1; i++) {
-        createHallway(rooms[i], rooms[i + 1]);
-    }
-    
-    return rooms; // Returns an array of Room objects
+function isFloorTile(x, y) {
+    // Replace 0 with the appropriate value representing a floor tile.
+    return map[y][x]?.value === 0; // assuming 0 is a floor tile
 }
 
+function createVisualWallsAround(floorX, floorY) {
+    // Check each of the four directions (up, down, left, right).
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            // Skip the center tile and diagonals
+            if ((dx === 0 && dy === 0) || (dx !== 0 && dy !== 0)) {
+                continue;
+            }
+            
+            let x = floorX + dx;
+            let y = floorY + dy;
 
+            // Check if the adjacent tile is a wall
+            if (map[y][x]?.value === 1) { // assuming 1 is a wall tile
+                createWall(x, y);
+            }
+        }
+    }
+}
 
+function generateDungeon() {
+    // Set up the dungeon generator
+    let dungeonWidth = MAP_WIDTH;
+    let dungeonHeight = MAP_HEIGHT;
+    let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight);
+    
+    // Create the map array to store the dungeon tiles
+    map = new Array(dungeonHeight);
+    for (let y = 0; y < dungeonHeight; y++) {
+        map[y] = new Array(dungeonWidth);
+    }
+
+    // Generate the dungeon and store it in the map array
+    dungeonGenerator.create(function(x, y, type) {
+        // Type 0 is a floor, type 1 is a wall
+        map[y][x] = {
+            x: x,
+            y: y,
+            value: type
+        };
+    });
+
+    // Now loop through the map array and use PIXI to render the tiles
+    for (let x = 0; x < dungeonWidth; x++) {
+        for (let y = 0; y < dungeonHeight; y++) {
+            let tile = map[y][x];
+            if (tile.value === 0) { // Floor tile
+                createFloor(tile.x, tile.y);
+            } else if (tile.value === 1) { // Wall tile
+                createWall(tile.x, tile.y);
+            }
+        }
+    }
+}
 
 
 /// UI functions
@@ -579,9 +567,6 @@ class MessageList {
         }
     }
 }
-
-
-
 
 // This function will run when the spritesheet has finished loading
 function setup() {
