@@ -320,28 +320,6 @@ function createTransparentWall(x, y) {
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
-function createVoid(x, y) {
-    createSprite(x, y, {x: 9, y: 9}, 216);
-
-    let sprite = map[y][x].sprite;
-
-    // Set the transformation origin to the center of the sprite
-    sprite.anchor.set(0.5, 0.5);
-
-    // Randomly flip the sprite horizontally or vertically
-    let randomFlip = Math.random(); // Generates a random number between 0 (inclusive) and 1 (exclusive)
-    if (randomFlip < 0.25) {
-        sprite.scale.x *= -1; // Flip horizontally
-    } else if (randomFlip < 0.5) {
-        sprite.scale.y *= -1; // Flip vertically
-    }
-
-    // Adjust sprite's position due to anchor change
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
-}
-
-
 function createFloor(x, y) {
     createSprite(x, y, {x: 19, y: 6}, 157);
 }
@@ -449,8 +427,11 @@ function generateDungeon() {
     // Set up the dungeon generator
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
-    let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight);
-    
+    let options = {
+        roomWidth: [5, 20], 
+        roomHeight: [5, 30] 
+    }
+    let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight, options);
     // Create the map array to store the dungeon tiles
     map = new Array(dungeonHeight);
     for (let y = 0; y < dungeonHeight; y++) {
@@ -572,11 +553,7 @@ class MessageList {
 function setup() {
 
     // Fill the map with void
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-            createVoid(x, y);
-        }
-    }
+    
 
     generateDungeon(MAP_WIDTH, MAP_HEIGHT);
     console.log(map);
