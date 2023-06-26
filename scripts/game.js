@@ -15,8 +15,8 @@ document.getElementById('game').appendChild(app.view);
 // Set up some constants
 const TILE_WIDTH = 40;
 const TILE_HEIGHT = 30;
-const MAP_WIDTH = 80;
-const MAP_HEIGHT = 60;
+const MAP_WIDTH = 60;
+const MAP_HEIGHT = 50;
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
@@ -308,36 +308,8 @@ function createWall(x, y) {
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
-function createTransparentVerticalWall(x, y) {
-    createSprite(x, y, {x: 16, y: 5}, 131); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 5}, 157); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
-}
-
 function createTransparentWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
-}
-
-function createFloor(x, y) {
-    createSprite(x, y, {x: 19, y: 6}, 157);
-}
-
-function createWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
-}
-
-function createTransparentVerticalWall(x, y) {
-    createSprite(x, y, {x: 16, y: 5}, 131); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 5}, 157); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
-}
-
-function createTransparentWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
+    overlaySprite(x, y, {x: 16, y: 7}, 157); // footprint
     overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
@@ -447,8 +419,6 @@ function generateDungeon() {
             value: type
         };
     });
-
-    // Now loop through the map array and use PIXI to render the tiles
     for (let x = 0; x < dungeonWidth; x++) {
         for (let y = 0; y < dungeonHeight; y++) {
             let tile = map[y][x];
@@ -456,6 +426,18 @@ function generateDungeon() {
                 createFloor(tile.x, tile.y);
             } else if (tile.value === 1) { // Wall tile
                 createWall(tile.x, tile.y);
+            }
+        }
+    }
+    // Adding the additional step to iterate through horizontal hallways and add overlay walls
+    for (let x = 1; x < dungeonWidth - 1; x++) {
+        for (let y = 1; y < dungeonHeight - 1; y++) {
+            let tile = map[y][x];
+            // Check if the tile is part of a horizontal hallway
+            if (tile.value === 0 && map[y][x - 1].value === 0 && map[y][x + 1].value === 0 &&
+                (map[y - 1][x].value === 1 || map[y + 1][x].value === 1)) {
+                // Adding a transparent wall overlay on top of the floor
+                createTransparentWall(x, y + 1);
             }
         }
     }
