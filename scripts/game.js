@@ -309,9 +309,9 @@ function createWall(x, y) {
 }
 
 function createTransparentWall(x, y) {
-    overlaySprite(x, y, {x: 16, y: 7}, 157); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+    overlaySprite(x, y, {x: 16, y: 5}, 157); // footprint
+    createSprite(x, y-1, {x: 16, y: 7}, 131); // middle
+    createSprite(x, y -2, {x: 16, y: 5}, 131); // top
 }
 
 class Room {
@@ -434,10 +434,9 @@ function generateDungeon() {
         for (let y = 1; y < dungeonHeight - 1; y++) {
             let tile = map[y][x];
             // Check if the tile is part of a horizontal hallway
-            if (tile.value === 0 && map[y][x - 1].value === 0 && map[y][x + 1].value === 0 &&
-                (map[y - 1][x].value === 1 || map[y + 1][x].value === 1)) {
+            if (tile.value === 177 && map[y- 1][x].value === 131 && map[y+1][x].value === 131) {
                 // Adding a transparent wall overlay on top of the floor
-                createTransparentWall(x, y + 1);
+                createTransparentWall(x, y+1);
             }
         }
     }
