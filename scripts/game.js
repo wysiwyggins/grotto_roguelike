@@ -121,7 +121,7 @@ class Player {
     
         // Check for collisions or going out of bounds
         if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
-            if (map[newTileY][newTileX]?.value === 157) {
+            if (map[newTileY][newTileX]?.value === 0) {
                 this.x = newTileX;
                 this.y = newTileY;
             }
@@ -230,7 +230,6 @@ class Item {
 }
 
 
-
 function createSprite(x, y, position, value) {
     if (!map[y]) {
         map[y] = [];
@@ -254,6 +253,7 @@ function createSprite(x, y, position, value) {
     
     app.stage.addChild(sprite);
     map[y][x] = {value: value, sprite: sprite};
+    console.log(`Creating sprite at (${x}, ${y}) with sprite:`, sprite, 'and value:', value);
 }
 
 function overlaySprite(x, y, position, value) {
@@ -277,7 +277,7 @@ function overlaySprite(x, y, position, value) {
 }
 
 function createVoid(x, y) {
-    createSprite(x, y, {x: 9, y: 9}, 216);
+    createSprite(x, y, {x: 9, y: 9}, 2);
 
     let sprite = map[y][x].sprite;
 
@@ -299,19 +299,44 @@ function createVoid(x, y) {
 
 
 function createFloor(x, y) {
-    createSprite(x, y, {x: 19, y: 6}, 157);
+    //console.log(`Creating floor at (${x}, ${y})`);
+    createSprite(x, y, { x: 19, y: 6 }, 0);
 }
-
+  
 function createWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+    //console.log(`Creating wall at (${x}, ${y})`);
+    createSprite(x, y, { x: 16, y: 7 }, 2); // footprint
+    createSprite(x, y - 1, { x: 16, y: 7 }, 2); // middle
+    createSprite(x, y - 2, { x: 16, y: 5 }, 2); // top
 }
+  
 
 function createTransparentWall(x, y) {
-    overlaySprite(x, y, {x: 16, y: 5}, 157); // footprint
-    createSprite(x, y-1, {x: 16, y: 7}, 131); // middle
-    createSprite(x, y -2, {x: 16, y: 5}, 131); // top
+    overlaySprite(x, y, {x: 16, y: 5}, 0); // footprint
+    createSprite(x, y-1, {x: 16, y: 7}, 1); // middle
+    createSprite(x, y -2, {x: 16, y: 5}, 1); // top
+}
+
+
+
+function getAdjacentTiles(x, y) {
+    let adjacentTiles = [];
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            if (dx !== 0 || dy !== 0) {
+                let nx = x + dx;
+                let ny = y + dy;
+                if (isInBounds(nx, ny)) {
+                    adjacentTiles.push(map[ny][nx]);
+                }
+            }
+        }
+    }
+    return adjacentTiles;
+}
+
+function isInBounds(x, y) {
+    return x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT;
 }
 
 class Room {
@@ -397,50 +422,51 @@ function createVisualWallsAround(floorX, floorY) {
 
 function generateDungeon() {
     // Set up the dungeon generator
+    console.log('Generating dungeon...');
+    let iterations = 0;
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
     let options = {
-        roomWidth: [5, 20], 
-        roomHeight: [5, 30] 
-    }
+      roomWidth: [5, 20],
+      roomHeight: [5, 30],
+    };
     let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight, options);
+  
     // Create the map array to store the dungeon tiles
     map = new Array(dungeonHeight);
     for (let y = 0; y < dungeonHeight; y++) {
-        map[y] = new Array(dungeonWidth);
+      map[y] = new Array(dungeonWidth);
     }
-
+  
     // Generate the dungeon and store it in the map array
-    dungeonGenerator.create(function(x, y, type) {
-        // Type 0 is a floor, type 1 is a wall
-        map[y][x] = {
-            x: x,
-            y: y,
-            value: type
-        };
+    dungeonGenerator.create(function (x, y, type) {
+      // Type 0 is a floor, type 1 is a wall
+      map[y][x] = type === 0 ? 0 : 1;
     });
+  
+    // Iterate over the map and create walls, floors, or dark areas based on adjacency
     for (let x = 0; x < dungeonWidth; x++) {
-        for (let y = 0; y < dungeonHeight; y++) {
-            let tile = map[y][x];
-            if (tile.value === 0) { // Floor tile
-                createFloor(tile.x, tile.y);
-            } else if (tile.value === 1) { // Wall tile
-                createWall(tile.x, tile.y);
-            }
+      for (let y = 0; y < dungeonHeight; y++) {
+        if (map[y][x] === 0) { // Floor tile
+          createFloor(x, y);
+        } else if (map[y][x] === 1) { // Wall tile
+          let adjacentTiles = getAdjacentTiles(x, y);
+          let hasFloorAdjacent = adjacentTiles.some(tile => tile === 0);
+  
+          // Check each direction and create a wall if adjacent to a floor tile
+          if (hasFloorAdjacent) {
+            createWall(x, y);
+          } else {
+            createVoid(x, y);
+          }
         }
+      }
     }
-    // Adding the additional step to iterate through horizontal hallways and add overlay walls
-    for (let x = 1; x < dungeonWidth - 1; x++) {
-        for (let y = 1; y < dungeonHeight - 1; y++) {
-            let tile = map[y][x];
-            // Check if the tile is part of a horizontal hallway
-            if (tile.value === 177 && map[y- 1][x].value === 131 && map[y+1][x].value === 131) {
-                // Adding a transparent wall overlay on top of the floor
-                createTransparentWall(x, y+1);
-            }
-        }
-    }
+    console.log('Dungeon generation complete.');
 }
+
+
+
 
 
 /// UI functions
@@ -542,7 +568,7 @@ function setup() {
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            if (map[y][x].value === 157) {
+            if (map[y][x].value === 0) {
                 walkableTiles.push({x: x, y: y});
             }
         }
