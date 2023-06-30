@@ -169,67 +169,6 @@ function createPlayerSprite(player) {
 
 }
 
-
-class NPC {
-    constructor(type, x, y) {
-        this.type = type;
-        this.x = x;
-        this.y = y;
-        this.sprite = null;
-
-        // You can set the specific attributes for each NPC type here.
-        switch(type) {
-            // Add cases for your NPC types here.
-            default:
-                // Add default attributes here.
-                break;
-        }
-    }
-
-    // NPCs can have their own behaviors and methods here.
-    move() {
-        // Implement NPC movement logic here.
-    }
-}
-
-//items
-
-class AbstractItem {
-    constructor(pk, name, description, itemType, activeAdjective, iconData, activeIconData) {
-        this.pk = pk;
-        this.name = name;
-        this.description = description;
-        this.itemType = itemType;
-        this.activeAdjective = activeAdjective;
-        this.iconData = iconData;
-        this.activeIconData = activeIconData;
-    }
-}
-
-class Item {
-    constructor(abstractItem, pk, name, colorName, colorHex, isActive, isUsable, isTakeable) {
-        this.AbstractItem = abstractItem;
-        this.pk = pk;
-        this.name = name;
-        this.colorName = colorName;
-        this.colorHex = colorHex;
-        this.isActive = isActive;
-        this.isUsable = isUsable;
-        this.isTakeable = isTakeable;
-        switch(type) {
-            // Add cases for your Item types here.
-            default:
-                // Add default attributes here.
-                break;
-        }
-    }
-
-    use() {
-        // Implement item use logic here.
-    }
-}
-
-
 function createSprite(x, y, position, value) {
     if (!map[y]) {
         map[y] = [];
@@ -339,85 +278,9 @@ function isInBounds(x, y) {
     return x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT;
 }
 
-class Room {
-    constructor(pk, name, colorName, colorHex, description, exits, x, y, width, height) {
-        this.pk = pk;
-        this.name = name;
-        this.colorName = colorName;
-        this.colorHex = colorHex;
-        this.description = description;
-        this.exits = exits;
-        this.x = x;
-        this.y = y;
-        this.width = width;
-        this.height = height;
-    }
-
-    createRoom() {
-        // Create the floor
-        for (let i = this.x + 1; i <= this.x + this.width - 2; i++) {
-            for (let j = this.y + 1; j < this.y + this.height - 1; j++) {
-                createFloor(i, j);
-            }
-        }
-
-        // Create the walls
-        for (let i = this.x; i < this.x + this.width; i++) {
-            createWall(i, this.y); // Top wall
-            createWall(i, this.y + this.height - 1); // Bottom wall
-        }
-        for (let j = this.y; j < this.y + this.height; j++) {
-            createWall(this.x, j); // Left wall
-            createWall(this.x + this.width - 1, j); // Right wall
-        }
-    }
-}
-
-
-function isPointInRoom(x, y, room) {
-    return x >= room.x && x < room.x + room.width && y >= room.y && y < room.y + room.height;
-}
-
-function getCenterOfRoom(room) {
-    return {
-        x: room.x + Math.floor(room.width / 2),
-        y: room.y + Math.floor(room.height / 2)
-    };
-}
-
-function generateVisualWalls() {
-    for (let x = 0; x < MAP_WIDTH; x++) {
-        for (let y = 0; y < MAP_HEIGHT; y++) {
-            if (isFloorTile(x, y)) {
-                createVisualWallsAround(x, y);
-            }
-        }
-    }
-}
 
 function isFloorTile(x, y) {
-    // Replace 0 with the appropriate value representing a floor tile.
-    return map[y][x]?.value === 0; // assuming 0 is a floor tile
-}
-
-function createVisualWallsAround(floorX, floorY) {
-    // Check each of the four directions (up, down, left, right).
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-            // Skip the center tile and diagonals
-            if ((dx === 0 && dy === 0) || (dx !== 0 && dy !== 0)) {
-                continue;
-            }
-            
-            let x = floorX + dx;
-            let y = floorY + dy;
-
-            // Check if the adjacent tile is a wall
-            if (map[y][x]?.value === 1) { // assuming 1 is a wall tile
-                createWall(x, y);
-            }
-        }
-    }
+    return map[y][x]?.value === 0; //0 is our walkable tile value for now
 }
 
 function generateDungeon() {
@@ -464,10 +327,6 @@ function generateDungeon() {
     }
     console.log('Dungeon generation complete.');
 }
-
-
-
-
 
 /// UI functions
 
@@ -563,7 +422,7 @@ function setup() {
     
 
     generateDungeon(MAP_WIDTH, MAP_HEIGHT);
-    console.log(map);
+    //console.log(map);
 
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
