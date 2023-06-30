@@ -290,8 +290,8 @@ function generateDungeon() {
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
     let options = {
-      roomWidth: [5, 20],
-      roomHeight: [5, 30],
+      roomWidth: [5, 40],
+      roomHeight: [5, 50],
     };
     let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight, options);
   
@@ -323,6 +323,11 @@ function generateDungeon() {
             createVoid(x, y);
           }
         }
+      }
+      iterations += 1;
+      if (iterations > 3000){
+        console.log("over 3000 iterations in dungeon generation, breaking")
+        break;
       }
     }
     console.log('Dungeon generation complete.');
