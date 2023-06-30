@@ -290,46 +290,46 @@ function generateDungeon() {
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
     let options = {
-      roomWidth: [5, 40],
-      roomHeight: [5, 50],
+        roomWidth: [5, 40],
+        roomHeight: [5, 50],
     };
     let dungeonGenerator = new ROT.Map.Uniform(dungeonWidth, dungeonHeight, options);
-  
+
     // Create the map array to store the dungeon tiles
     map = new Array(dungeonHeight);
     for (let y = 0; y < dungeonHeight; y++) {
-      map[y] = new Array(dungeonWidth);
+        map[y] = new Array(dungeonWidth);
     }
-  
+
     // Generate the dungeon and store it in the map array
     dungeonGenerator.create(function (x, y, type) {
-      // Type 0 is a floor, type 1 is a wall
-      map[y][x] = type === 0 ? 0 : 1;
+        // Type 0 is a floor, type 1 is a wall
+        map[y][x] = type === 0 ? 0 : 1;
     });
-  
-    // Iterate over the map and create walls, floors, or dark areas based on adjacency
+
+    // Iterate over the map and create voids, walls, and floors
     for (let x = 0; x < dungeonWidth; x++) {
-      for (let y = 0; y < dungeonHeight; y++) {
-        if (map[y][x] === 0) { // Floor tile
-          createFloor(x, y);
-        } else if (map[y][x] === 1) { // Wall tile
-          let adjacentTiles = getAdjacentTiles(x, y);
-          let hasFloorAdjacent = adjacentTiles.some(tile => tile === 0);
-  
-          // Check each direction and create a wall if adjacent to a floor tile
-          if (hasFloorAdjacent) {
-            createWall(x, y);
-          } else {
-            createVoid(x, y);
-          }
+        for (let y = 0; y < dungeonHeight; y++) {
+            if (map[y][x] === 0) { // Floor tile
+                createFloor(x, y);
+            } else if (map[y][x] === 1) { // Wall tile
+                let adjacentTiles = getAdjacentTiles(x, y);
+                let hasFloorAdjacent = adjacentTiles.some(tile => tile === 0);
+
+                // Check if adjacent left tile is a floor
+                let leftTile = x > 0 ? map[y][x - 1] : null;
+                let isLeftFloor = leftTile === 0;
+
+                // Create wall if adjacent to a floor, left tile is a floor, or right tile is a floor
+                if (hasFloorAdjacent || isLeftFloor || (x + 1 < dungeonWidth && map[y][x + 1] === 0)) {
+                    createWall(x, y);
+                } else {
+                    createVoid(x, y);
+                }
+            }
         }
-      }
-      iterations += 1;
-      if (iterations > 3000){
-        console.log("over 3000 iterations in dungeon generation, breaking")
-        break;
-      }
     }
+
     console.log('Dungeon generation complete.');
 }
 
