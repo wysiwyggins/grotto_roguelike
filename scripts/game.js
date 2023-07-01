@@ -251,9 +251,10 @@ function createWall(x, y) {
   
 
 function createTransparentWall(x, y) {
-    overlaySprite(x, y, {x: 16, y: 5}, 0); // footprint
-    createSprite(x, y-1, {x: 16, y: 7}, 1); // middle
-    createSprite(x, y -2, {x: 16, y: 5}, 1); // top
+    createSprite(x, y, {x: 16, y: 5}, 2); // footprint
+    createFloor(x, y-1);
+    overlaySprite(x, y-1, {x: 16, y: 7}, 0); // middle
+    overlaySprite(x, y -2, {x: 16, y: 5}, 1); // top
 }
 
 
@@ -283,10 +284,19 @@ function isFloorTile(x, y) {
     return map[y][x]?.value === 0; //0 is our walkable tile value for now
 }
 
+
+function isBottomWall(x, y) {
+    // Check if the tile is the bottom wall of a horizontal hallway
+    return (
+        y < MAP_HEIGHT - 1 &&
+        map[y][x] === 0 &&
+        map[y + 1][x] === 1
+    );
+}
+
 function generateDungeon() {
     // Set up the dungeon generator
     console.log('Generating dungeon...');
-    let iterations = 0;
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
     let options = {
@@ -316,13 +326,13 @@ function generateDungeon() {
                 let adjacentTiles = getAdjacentTiles(x, y);
                 let hasFloorAdjacent = adjacentTiles.some(tile => tile === 0);
 
-                // Check if adjacent left tile is a floor
-                let leftTile = x > 0 ? map[y][x - 1] : null;
-                let isLeftFloor = leftTile === 0;
-
-                // Create wall if adjacent to a floor, left tile is a floor, or right tile is a floor
-                if (hasFloorAdjacent || isLeftFloor || (x + 1 < dungeonWidth && map[y][x + 1] === 0)) {
-                    createWall(x, y);
+                // Create wall if adjacent to a floor, transparent wall if 0 is above 1
+                if (hasFloorAdjacent ) {
+                    if (isBottomWall(x, y)) {
+                        createTransparentWall(x, y); //not working
+                    } else {
+                        createWall(x, y); //not drawing a right wall
+                    }
                 } else {
                     createVoid(x, y);
                 }
@@ -332,8 +342,6 @@ function generateDungeon() {
 
     console.log('Dungeon generation complete.');
 }
-
-/// UI functions
 
 function drawUIBox(message) {
     const BOX_HEIGHT = 5;
