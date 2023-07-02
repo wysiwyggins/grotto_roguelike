@@ -17,11 +17,13 @@ const TILE_WIDTH = 40;
 const TILE_HEIGHT = 30;
 const MAP_WIDTH = 60;
 const MAP_HEIGHT = 50;
+const TILEMAP_PATH = 'assets/maps/rooms.tmj';
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
 const SPRITESHEET_COLUMNS = 23;
 const SPRITESHEET_ROWS = 11;
+NUM_ITERATIONS = 1;
 
 let map = new Array(MAP_HEIGHT);
 for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -192,7 +194,7 @@ function createSprite(x, y, position, value) {
     
     app.stage.addChild(sprite);
     map[y][x] = {value: value, sprite: sprite};
-    console.log(`Creating sprite at (${x}, ${y}) with sprite:`, sprite, 'and value:', value);
+    //console.log(`Creating sprite at (${x}, ${y}) with sprite:`, sprite, 'and value:', value);
 }
 
 function overlaySprite(x, y, position, value) {
@@ -244,14 +246,14 @@ function createFloor(x, y) {
   
 function createWall(x, y) {
     //console.log(`Creating wall at (${x}, ${y})`);
-    createSprite(x, y, { x: 16, y: 7 }, 2); // footprint
-    createSprite(x, y - 1, { x: 16, y: 7 }, 2); // middle
-    createSprite(x, y - 2, { x: 16, y: 5 }, 2); // top
+    createSprite(x, y, { x: 16, y: 7 }, 1); // footprint
+    createSprite(x, y - 1, { x: 16, y: 7 }, 1); // middle
+    createSprite(x, y - 2, { x: 16, y: 5 }, 1); // top
 }
   
 
 function createTransparentWall(x, y) {
-    createSprite(x, y, {x: 16, y: 5}, 2); // footprint
+    createSprite(x, y, {x: 16, y: 5}, 1); // footprint
     createFloor(x, y-1);
     overlaySprite(x, y-1, {x: 16, y: 7}, 0); // middle
     overlaySprite(x, y -2, {x: 16, y: 5}, 1); // top
@@ -275,6 +277,10 @@ function getAdjacentTiles(x, y) {
     return adjacentTiles;
 }
 
+//The isInBounds function is a simple utility function that checks whether
+// a given coordinate (x, y) is within the bounds of a two-dimensional map. 
+//The bounds of the map are determined by the constants MAP_WIDTH and MAP_HEIGHT.
+
 function isInBounds(x, y) {
     return x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT;
 }
@@ -294,8 +300,8 @@ function isBottomWall(x, y) {
     );
 }
 
+//Rot.js uniform dungeon generator, doesn't totally work yet
 function generateDungeon() {
-    // Set up the dungeon generator
     console.log('Generating dungeon...');
     let dungeonWidth = MAP_WIDTH;
     let dungeonHeight = MAP_HEIGHT;
@@ -318,30 +324,117 @@ function generateDungeon() {
     });
 
     // Iterate over the map and create voids, walls, and floors
-    for (let x = 0; x < dungeonWidth; x++) {
-        for (let y = 0; y < dungeonHeight; y++) {
-            if (map[y][x] === 0) { // Floor tile
-                createFloor(x, y);
-            } else if (map[y][x] === 1) { // Wall tile
-                let adjacentTiles = getAdjacentTiles(x, y);
-                let hasFloorAdjacent = adjacentTiles.some(tile => tile === 0);
-
-                // Create wall if adjacent to a floor, transparent wall if 0 is above 1
-                if (hasFloorAdjacent ) {
-                    if (isBottomWall(x, y)) {
-                        createTransparentWall(x, y); //not working
-                    } else {
-                        createWall(x, y); //not drawing a right wall
-                    }
-                } else {
-                    createVoid(x, y);
-                }
-            }
-        }
+    for (let i = 0; i < NUM_ITERATIONS; i++) {
+        applyMatchingRules();
     }
 
     console.log('Dungeon generation complete.');
 }
+
+
+function applyMatchingRules() {
+    let updatedMap = new Array(MAP_HEIGHT);
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        updatedMap[y] = new Array(MAP_WIDTH);
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            updatedMap[y][x] = map[y][x];
+        }
+    }
+
+    for (let x = 0; x < MAP_WIDTH; x++) {
+        for (let y = 0; y < MAP_HEIGHT; y++) {
+            updatedMap[y][x] = applyMatchingRule(x, y);
+        }
+    }
+
+    map = updatedMap;
+}
+
+function applyMatchingRule(x, y) {
+    if (map[y][x] === 0) {
+        createFloor(x, y);
+        return 0;
+    }
+
+    if (map[y][x] === 1) {
+        createWall(x, y);
+        return 1;
+    }
+
+    if (map[y][x] === 1) {
+        let adjacentTiles = getAdjacentTiles(x, y);
+        if (adjacentTiles.every(tile => tile === 1)) {
+            createVoid(x, y);
+            return -1;
+        }
+    }
+
+    if (map[y][x] === 1 && y < MAP_HEIGHT - 1 && map[y + 1][x] === 2 && map[y][x - 1] === -1) {
+        createSprite(x, y, { x: 12, y: 5 }, -1);
+        return -1;
+    }
+
+    if (map[y][x] === 2 && y < MAP_HEIGHT - 1 && map[y + 1][x] === 1 && map[y][x - 1] === 2) {
+        createSprite(x, y, { x: 12, y: 5 }, -1);
+        return -1;
+    }
+
+    if (map[y][x] === 2 && map[y][x - 1] === -1 && map[y - 1][x] === 1) {
+        createSprite(x, y - 1, { x: 16, y: 7 }, -1);
+        return -1;
+    }
+
+    return map[y][x];
+}
+
+// Tiled map importer, also not working
+function importTilemapLayers(room) {
+    // Load the tilemap JSON file
+    PIXI.Loader.shared.add('tilemap', TILEMAP_PATH).load((loader, resources) => {
+      let tilemap = resources.tilemap.data;
+  
+      // Extract the desired layers based on the room string
+      let backgroundLayer = tilemap.layers.find(layer => layer.name === `${room}-background`);
+      let layer2 = tilemap.layers.find(layer => layer.name === `${room}-2`);
+  
+      // Calculate the position to place the layers in the center of the map
+      let offsetX = Math.floor((MAP_WIDTH - backgroundLayer.width) / 2);
+      let offsetY = Math.floor((MAP_HEIGHT - backgroundLayer.height) / 2);
+  
+      // Iterate over each tile in the layers and add to the map array
+      for (let y = 0; y < backgroundLayer.height; y++) {
+        for (let x = 0; x < backgroundLayer.width; x++) {
+          let tileIndex = y * backgroundLayer.width + x;
+          let backgroundTile = backgroundLayer.data[tileIndex];
+          let layer2Tile = layer2.data[tileIndex];
+  
+          // Calculate the position in the ROT.js map for the current tile
+          let mapX = offsetX + x;
+          let mapY = offsetY + y;
+  
+          // Create void tiles around the imported layers
+          if (mapX < offsetX || mapY < offsetY || mapX >= offsetX + backgroundLayer.width || mapY >= offsetY + backgroundLayer.height) {
+            createVoid(mapX, mapY);
+          }
+  
+          // Add the tiles to the map array
+          map[mapX][mapY].backgroundTile = backgroundTile;
+          map[mapX][mapY].layer2Tile = layer2Tile;
+        }
+      }
+    });
+  }
+  
+  
+function tileIndexToPosition(tileIndex) {
+const TILESET_COLUMNS = 23;
+let spriteColumn = (tileIndex - 1) % TILESET_COLUMNS;
+let spriteRow = Math.floor((tileIndex - 1) / TILESET_COLUMNS);
+return { x: spriteColumn, y: spriteRow };
+}
+
+// Textbox stuff, sometimes has problems clearing the tiles underneath it, which is weird because
+// createSprite() should do this already
 
 function drawUIBox(message) {
     const BOX_HEIGHT = 5;
@@ -354,25 +447,25 @@ function drawUIBox(message) {
     const BLANK_TILE = { x: 0, y: 0};
 
     // Draw the top border of the box
-    createSprite(0, 0, BORDER_TOP_LEFT, 214);
+    createSprite(0, 0, BORDER_TOP_LEFT, 3);
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, 0, BORDER_HORIZONTAL, 196);
+        createSprite(x, 0, BORDER_HORIZONTAL, 3);
     }
-    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 191);
+    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 3);
 
     // Draw the bottom border of the box
-    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 192);
+    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 3);
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 196);
+        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 3);
     }
-    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 217);
+    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 3);
 
     // Draw the vertical borders and the message
     for (let y = 1; y < BOX_HEIGHT - 1; y++) {
-        createSprite(0, y, BORDER_VERTICAL, 179);
-        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 179);
+        createSprite(0, y, BORDER_VERTICAL, 3);
+        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 3);
         for(let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, y, BLANK_TILE, 0);
+            createSprite(x, y, BLANK_TILE, 3);
         }
         // Write the message
         if (y === Math.floor(BOX_HEIGHT / 2)) {
@@ -430,13 +523,16 @@ class MessageList {
 
 // This function will run when the spritesheet has finished loading
 function setup() {
-
-    // Fill the map with void
     
+    //importTilemapLayers('15-a');
+    generateDungeon();
+    
+    const messageList = new MessageList();
+    messageList.render();
 
-    generateDungeon(MAP_WIDTH, MAP_HEIGHT);
+    
     //console.log(map);
-
+    
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -475,6 +571,5 @@ function setup() {
         }
     });
 
-    const messageList = new MessageList();
-    messageList.render();
+    
 }
