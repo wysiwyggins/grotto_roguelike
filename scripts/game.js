@@ -250,16 +250,23 @@ function createWall(x, y) {
     createSprite(x, y - 2, {x: 16, y: 5}); // top
 }
 
+function createVerticalWall(x, y) {
+    console.log("a vertical wall!")
+    createSprite(x, y, {x: 16, y: 5}, 177); // footprint
+    createSprite(x, y - 1, {x: 16, y: 5}); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}); // top
+}
+
 function createTransparentVerticalWall(x, y) {
     createSprite(x, y, {x: 16, y: 5}, 177); // footprint
     overlaySprite(x, y - 1, {x: 16, y: 5}); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}); // top
+    overlaySprite(x, y - 2, {x: 16, y: 5}); // top
 }
 
 function createTransparentWall(x, y) {
     createSprite(x, y, {x: 16, y: 7}, 177); // footprint
     overlaySprite(x, y - 1, {x: 16, y: 7}); // middle
-    overlaySprite(x, y - 2, {x: 16, y: 5}); // top
+    createSprite(x, y - 2, {x: 16, y: 5}); // top
 }
 
 function createRoom(x, y, width, height) {
@@ -373,6 +380,155 @@ function addFloorsAndVoid() {
     }
 }
 
+function isAdjacentToFloor(map, x, y, tileValue) {
+    const isAboveFloor = y > 0 && map[y - 1][x].value === tileValue; // Check Up
+    const isBelowFloor = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue; // Check Down
+    const isLeftFloor = x > 0 && map[y][x - 1].value === tileValue; // Check Left
+    const isRightFloor = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue; // Check Right
+
+    return isAboveFloor || isBelowFloor || isLeftFloor || isRightFloor;
+}
+
+function isAdjacentToFloorAbove(map, x, tileValue) {
+    return y > 0 && map[y - 1][x].value === tileValue; // Check Up
+}
+
+function isAdjacentToTileWithGivenValue(map, x, y, tileValue) {
+    const isAbove = y > 1 && map[y - 1][x].value === tileValue; // Check Up
+    const isBelow = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue; // Check Down
+    const isLeft = x > 1 && map[y][x - 1].value === tileValue; // Check Left
+    const isRight = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue; // Check Right
+
+    return isAbove || isBelow || isLeft || isRight;
+}
+
+function hasTileWithGivenValueAbove(map, x, y, tileValue) {
+    return y > 0 && map[y - 1][x].value === tileValue;
+}
+
+function hasTileWithGivenValueBelow(map, x, y, tileValue) {
+    return y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+}
+
+
+function hasVerticalTilesOnSideWithGivenValue(map, x, y, tileValue, isLeftSide) {
+    let hasVerticalTiles;
+    
+    if (isLeftSide) {
+        hasVerticalTiles = x > 0 &&
+            (y > 0 && map[y - 1][x - 1].value === tileValue) && // Top Left
+            (map[y][x - 1].value === tileValue) && // Middle Left
+            (y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue); // Lower Left
+    } else {
+        hasVerticalTiles = x < MAP_WIDTH - 1 &&
+            (y > 0 && map[y - 1][x + 1].value === tileValue) && // Top Right
+            (map[y][x + 1].value === tileValue) && // Middle Right
+            (y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue); // Lower Right
+    }
+
+    // Log the values for debugging purposes
+    //console.log(`Checking vertical tiles at (${x}, ${y}), isLeftSide: ${isLeftSide}, hasVerticalTiles: ${hasVerticalTiles}`);
+    
+    return hasVerticalTiles;
+}
+
+function hasTileWithGivenValueOnLeft(map, x, y, tileValue) {
+    return x > 0 && map[y][x - 1].value === tileValue;
+}
+
+function hasTileWithGivenValueOnRight(map, x, y, tileValue) {
+    return x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+}
+
+function hasTileWithGivenValueInMidAndLowerRight(map, x, y, tileValue) {
+    const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === 216;
+    const isMidRight = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+    const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
+
+    return isMidRight && isLowerRight && isUpperRight;
+}
+
+function hasTileWithGivenValueInMidAndLowerLeft(map, x, y, tileValue) {
+    const isUpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === 216;
+    const isMidLeft = x > 0 && map[y][x - 1].value === tileValue;
+    const isLowerLeft = x > 0 && y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue;
+
+    return isUpperLeft && isMidLeft && isLowerLeft;
+}
+
+function isOnlyUpperLeftCornerTile(map, x, y, tileValue) {
+    const above = y > 0 && map[y - 1][x].value === tileValue;
+    const left = x > 0 && map[y][x - 1].value === tileValue;
+    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+
+    return left && above && !below && !right;
+}
+
+function isOnlyUpperRightCornerTile(map, x, y, tileValue) {
+    const above = y > 0 && map[y - 1][x].value === tileValue;
+    const left = x > 0 && map[y][x - 1].value === tileValue;
+    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+
+    return right && above && !below && !left;
+}
+
+function isOnlyLowerLeftCornerTile(map, x, y, tileValue) {
+    const above = y > 0 && map[y - 1][x].value === tileValue;
+    const left = x > 0 && map[y][x - 1].value === tileValue;
+    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+
+    return left && below && !above && !right;
+}
+
+function isOnlyLowerRightCornerTile(map, x, y, tileValue) {
+    const above = y > 0 && map[y - 1][x].value === tileValue;
+    const left = x > 0 && map[y][x - 1].value === tileValue;
+    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+
+    return right && below && !above && !left;
+}
+
+
+function fillWallCorners(map) {
+    // Loop through each row
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        // Loop through each column
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            // Check if the current tile has a value of 216 (void)
+            if (map[y][x].value === 216) {
+
+                // Check each corner
+                if (isOnlyUpperLeftCornerTile(map, x, y, 157)) {
+                    // Create a vertical wall at the upper left corner
+                    console.log("Creating vertical wall at upper left corner (" + x + ", " + y + ")");
+                    createWall(x, y);
+                }
+                if (isOnlyUpperRightCornerTile(map, x, y, 157)) {
+                    // Create a vertical wall at the upper right corner
+                    console.log("Creating vertical wall at upper right corner (" + x + ", " + y + ")");
+                    createWall(x, y);
+                }
+                if (isOnlyLowerLeftCornerTile(map, x, y, 157)) {
+                    // Create a wall at the lower left corner
+                    console.log("Creating wall at lower left corner (" + x + ", " + y + ")");
+                    createVerticalWall(x, y);
+                }
+                if (isOnlyLowerRightCornerTile(map, x, y, 157)) {
+                    // Create a wall at the lower right corner
+                    console.log("Creating wall at lower right corner (" + x + ", " + y + ")");
+                    createVerticalWall(x, y);
+                }
+            }
+        }
+    }
+}
+
+
+
 function evaluateMapAndCreateWalls(map) {
     // Loop through each row
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -380,67 +536,36 @@ function evaluateMapAndCreateWalls(map) {
         for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile has a value of 216
             if (map[y][x].value === 216) {
-                console.log("I found a void at (" + x + ", " + y + ")");
-                
-                let isAdjacentToFloorAbove = y > 0 && map[y - 1][x].value === 157; // Check Up
+                //console.log("I found a void at (" + x + ", " + y + ")");
+
+                // First, check for vertical walls
+                // Check if adjacent to floor
+                let isAdjacentToFloorAbove = hasTileWithGivenValueAbove(map, x, y, 157);
                 
                 let isAdjacentToFloor =
                     isAdjacentToFloorAbove ||
-                    (y < MAP_HEIGHT - 1 && map[y + 1][x].value === 157) || // Check Down
-                    (x > 0 && map[y][x - 1].value === 157) || // Check Left
-                    (x < MAP_WIDTH - 1 && map[y][x + 1].value === 157); // Check Right
-                
+                    hasTileWithGivenValueBelow(map, x, y, 157) ||
+                    hasTileWithGivenValueOnLeft(map, x, y, 157) ||
+                    hasTileWithGivenValueOnRight(map, x, y, 157);
+
                 if (isAdjacentToFloor) {
                     if (isAdjacentToFloorAbove) {
                         // Run the createTransparentWall function at this location (x, y)
-                        console.log("Creating transparent wall at (" + x + ", " + y + ")");
+                        //console.log("Creating transparent wall at (" + x + ", " + y + ")");
                         createTransparentWall(x, y);
                     } else {
                         // Run the createWall function at this location (x, y)
-                        console.log("Creating wall at (" + x + ", " + y + ")");
+                        //console.log("Creating wall at (" + x + ", " + y + ")");
                         createWall(x, y);
                     }
                 } else {
-                    console.log("Void at (" + x + ", " + y + ") is NOT adjacent to a floor");
+                    //console.log("Void at (" + x + ", " + y + ") is NOT adjacent to a floor");
                 }
             }
         }
     }
 }
 
-function fillWallCorners(map) {
-    // Loop through each row
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        // Loop through each column
-        for (let x = 0; x < MAP_WIDTH; x++) {
-            // Check if the current tile has a value of 216
-            if (map[y][x].value === 216) {
-                // Count the number of adjacent walls
-                let adjacentWalls = 0;
-                
-                // Check Up
-                if (y > 0 && map[y - 1][x].value === 177) {
-                    adjacentWalls++;
-                }
-                // Check Left
-                if (x > 0 && map[y][x - 1].value === 177) {
-                    adjacentWalls++;
-                }
-                // Check Right
-                if (x < MAP_WIDTH - 1 && map[y][x + 1].value === 177) {
-                    adjacentWalls++;
-                }
-                
-                // If two or more adjacent walls are found, create a wall at the current location
-                if (adjacentWalls >= 2) {
-                    createSprite(x, y, {x: 16, y: 7}); // footprint
-                    createSprite(x, y - 1, {x: 16, y: 7}); // middle
-                    createSprite(x, y - 2, {x: 16, y: 5}); // top
-                }
-            }
-        }
-    }
-}
 
 
 /// UI functions
