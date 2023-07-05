@@ -246,7 +246,7 @@ function createFloor(x, y) {
 
 function createWall(x, y) {
     createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}); // middle
+    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
     createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
 }
 
@@ -265,7 +265,7 @@ function createTransparentVerticalWall(x, y) {
 
 function createTransparentWall(x, y) {
     createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 7}); // middle
+    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
     createSprite(x, y - 2, {x: 16, y: 5}); // top
 }
 
@@ -502,10 +502,6 @@ function isLowerRightCornerTile(map, x, y, tileValue) {
     return false;
 }
 
-
-
-
-
 function fillWallCorners() {
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -521,7 +517,7 @@ function fillWallCorners() {
                     }
                 }
                 // Check for upper right corner
-                if (isUpperRightCornerTile(map, x, y, 157) && isLowerRightCornerTile(map,x,y,216)) {
+                if (isUpperRightCornerTile(map, x, y, 157)) {
                     console.log("void with upper-right floor tile detected");
                     if (isAbove(map, x, y, 177) &&
                         isOnRight(map, x, y, 177)) {
@@ -531,13 +527,29 @@ function fillWallCorners() {
                 } 
 
                 if (isLowerLeftCornerTile(map, x, y, 157)) {
-                    console.log("void with lower-left floor tile detected");
+                    //console.log("void with lower-left floor tile detected");
                     if (isOnLeft(map, x, y, 177) &&
                         isBelow(map, x, y, 131) || isBelow(map,x,y,177)) {
                         console.log("making a corner wall"); 
                         createVerticalWall(x, y);
                     }
                 }
+                if (isLowerRightCornerTile(map, x, y, 157)) {
+                    //console.log("void with lower-right floor tile detected");
+                    if (isOnRight(map, x, y, 177) &&
+                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177))) {
+                        console.log("making a corner wall");    
+                        createVerticalWall(x, y);
+                    }
+                }
+
+                if (isLowerLeftCornerTile(map, x, y, 177)) {
+                    if (isOnLeft(map, x, y, 131) &&
+                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177))) {
+                            createSprite(x, y, {x: 16, y: 5}, 131);
+                    }
+                }
+
             }
             if (map[y][x].value === 131) {
 
@@ -545,7 +557,7 @@ function fillWallCorners() {
                 if (isLowerLeftCornerTile(map, x, y, 157)) {
                     console.log("void with lower-left floor tile detected");
                     if (isOnLeft(map, x, y, 177) &&
-                        isBelow(map, x, y, 131) || isBelow(map,x,y,177)) {
+                        (isBelow(map, x, y, 131) || isBelow(map,x,y,177)) ) {
                         console.log("making a corner wall"); 
                         createVerticalWall(x, y);
                     }
@@ -554,7 +566,7 @@ function fillWallCorners() {
                 if (isLowerRightCornerTile(map, x, y, 157)) {
                     console.log("void with lower-right floor tile detected");
                     if (isOnRight(map, x, y, 177) &&
-                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177))) {
+                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177)) ) {
                         console.log("making a corner wall");    
                         createVerticalWall(x, y);
                     }
@@ -576,7 +588,7 @@ function addBaseAndShadows() {
                 if ((isOnLeft(map,x,y,131) || isOnLeft(map,x,y,177)) && !isTwoAbove(map,x,y,127) && isAbove(map,x,y,177)){
                     createSprite(x,y,{x: 12, y: 5}, 127);
                 }
-                if (isOnLeft(map,x,y,127) && !isOnRight(map,x,y,177) && isAbove(map,x,y,177)){
+                if (isOnLeft(map,x,y,127)  && isAbove(map,x,y,177)){
                     let xPos = x; // Start checking from the tile to the right of the current tile
                     while (y > 1 && xPos < MAP_WIDTH -1 && map[y][xPos].value === 216 && !isAbove(
                         map,xPos,y,127) && (map[y - 2][xPos].value === 157 ||map[y - 2][xPos].value === 177)) {
@@ -587,11 +599,26 @@ function addBaseAndShadows() {
                 if ((isUpperLeftCornerTile(map,x,y,127) && isTwoAbove(map,x,y,177)) || isOnLeft(map,x,y,127) && isBelow(map,x,y,127)){
                     createSprite(x,y,{x: 12, y: 5}, 127);
                 }
+
+                
             }
         }
     }
 }
 
+function connectHallways() {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            if (map[y][x].value === 131) {
+                if (isOnLeft(map,x,y,157)&& isOnRight(map,x,y,157)){
+                    createFloor(x,y);
+                    overlaySprite(x, y, {x: 16, y: 5});
+                } 
+            }
+            
+        }
+    }
+}
 
 
 function evaluateMapAndCreateWalls(map) {
@@ -726,7 +753,8 @@ function setup() {
     addFloorsAndVoid();
     evaluateMapAndCreateWalls(map);
     fillWallCorners();
-    addBaseAndShadows()
+    addBaseAndShadows();
+    connectHallways();
 
 
     let walkableTiles = [];
