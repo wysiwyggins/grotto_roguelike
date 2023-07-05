@@ -529,6 +529,15 @@ function fillWallCorners() {
                         createWall(x, y);
                     }
                 } 
+
+                if (isLowerLeftCornerTile(map, x, y, 157)) {
+                    console.log("void with lower-left floor tile detected");
+                    if (isOnLeft(map, x, y, 177) &&
+                        isBelow(map, x, y, 131) || isBelow(map,x,y,177)) {
+                        console.log("making a corner wall"); 
+                        createVerticalWall(x, y);
+                    }
+                }
             }
             if (map[y][x].value === 131) {
 
@@ -561,20 +570,23 @@ function addBaseAndShadows() {
         for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile is a floor
             if (map[y][x].value === 216) { 
-                if (isUpperLeftCornerTile(map,x,y,216) && isAbove(map,x,y,177) && !isOnRight(map,x,y,177)) {
-                    createSprite(x,y,{x: 12, y: 5}, 127)
+                if (isUpperLeftCornerTile(map,x,y,216) && isAbove(map,x,y,177) && !isTwoAbove(map,x,y,127) && !isOnRight(map,x,y,177) && !isOnLeft(map,x,y,127)) {
+                    createSprite(x,y,{x: 12, y: 5}, 127);
+                }
+                if ((isOnLeft(map,x,y,131) || isOnLeft(map,x,y,177)) && !isTwoAbove(map,x,y,127) && isAbove(map,x,y,177)){
+                    createSprite(x,y,{x: 12, y: 5}, 127);
                 }
                 if (isOnLeft(map,x,y,127) && !isOnRight(map,x,y,177) && isAbove(map,x,y,177)){
                     let xPos = x; // Start checking from the tile to the right of the current tile
-                    while (y > 1 && xPos < MAP_WIDTH -1 && (map[y - 2][xPos].value === 157 ||map[y - 2][xPos].value === 177)) {
+                    while (y > 1 && xPos < MAP_WIDTH -1 && map[y][xPos].value === 216 && !isAbove(
+                        map,xPos,y,127) && (map[y - 2][xPos].value === 157 ||map[y - 2][xPos].value === 177)) {
                         createSprite(xPos, y, {x: 16, y: 7}, 177);
                         xPos++; // Move to the next tile to the right
                     }
                 }
-                if (isUpperLeftCornerTile(map,x,y,127) && isTwoAbove(map,x,y,177)){
+                if ((isUpperLeftCornerTile(map,x,y,127) && isTwoAbove(map,x,y,177)) || isOnLeft(map,x,y,127) && isBelow(map,x,y,127)){
                     createSprite(x,y,{x: 12, y: 5}, 127);
                 }
-
             }
         }
     }
