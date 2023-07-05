@@ -457,70 +457,102 @@ function hasTileWithGivenValueInMidAndLowerLeft(map, x, y, tileValue) {
 }
 
 function isOnlyUpperLeftCornerTile(map, x, y, tileValue) {
-    const above = y > 0 && map[y - 1][x].value === tileValue;
+    const aboveLeft = y > 0 && map[y - 1][x -1].value === tileValue;
     const left = x > 0 && map[y][x - 1].value === tileValue;
     const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
     const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
 
-    return left && above && !below && !right;
+    return left && aboveLeft && !below && !right;
 }
 
-function isOnlyUpperRightCornerTile(map, x, y, tileValue) {
-    const above = y > 0 && map[y - 1][x].value === tileValue;
-    const left = x > 0 && map[y][x - 1].value === tileValue;
-    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
-    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
-
-    return right && above && !below && !left;
+function isUpperLeftCornerTile(map, x, y, tileValue) {
+    // Check if y - 1 is within bounds
+    if (y > 0) {
+        // Check if x - 1 is within bounds, and map[y - 1][x - 1] exists with a 'value' property
+        if (x > 0 && map[y - 1][x - 1] && typeof map[y - 1][x - 1].value !== 'undefined') {
+            return map[y - 1][x - 1].value === tileValue;
+        }
+    }
+    return false;
 }
 
-function isOnlyLowerLeftCornerTile(map, x, y, tileValue) {
-    const above = y > 0 && map[y - 1][x].value === tileValue;
-    const left = x > 0 && map[y][x - 1].value === tileValue;
-    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
-    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
-
-    return left && below && !above && !right;
-}
-
-function isOnlyLowerRightCornerTile(map, x, y, tileValue) {
-    const above = y > 0 && map[y - 1][x].value === tileValue;
-    const left = x > 0 && map[y][x - 1].value === tileValue;
-    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
-    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
-
-    return right && below && !above && !left;
+function isUpperRightCornerTile(map, x, y, tileValue) {
+    // Check if y - 1 is within bounds
+    if (y > 0) {
+        // Check if x - 1 is within bounds, and map[y - 1][x + 1] exists with a 'value' property
+        if (x < MAP_WIDTH -1 && map[y - 1][x + 1] && typeof map[y - 1][x + 1].value !== 'undefined') {
+            return map[y - 1][x + 1].value === tileValue;
+        }
+    }
+    return false;
 }
 
 
-function fillWallCorners(map) {
-    // Loop through each row
+function isLowerLeftCornerTile(map, x, y, tileValue) {
+    // Check if y + 1 is within bounds
+    if (y < map.length - 1) {
+        // Check if x - 1 is within bounds
+        if (x > 0 && map[y + 1][x - 1] && typeof map[y + 1][x - 1].value !== 'undefined') {
+            return map[y + 1][x - 1].value === tileValue;
+        }
+    }
+    return false;
+}
+
+
+function isLowerRightCornerTile(map, x, y, tileValue) {
+    // Check if y + 1 is within bounds
+    if (y < map.length - 1) {
+        // Check if x - 1 is within bounds
+        if (x < MAP_WIDTH - 1 && map[y + 1][x - 1] && typeof map[y + 1][x - 1].value !== 'undefined') {
+            return map[y + 1][x - 1].value === tileValue;
+        }
+    }
+    return false;
+}
+
+
+
+function fillWallCorners() {
     for (let y = 0; y < MAP_HEIGHT; y++) {
-        // Loop through each column
         for (let x = 0; x < MAP_WIDTH; x++) {
-            // Check if the current tile has a value of 216 (void)
+            // Check if the current tile is a floor
             if (map[y][x].value === 216) {
-
-                // Check each corner
-                if (isOnlyUpperLeftCornerTile(map, x, y, 157)) {
-                    // Create a vertical wall at the upper left corner
-                    console.log("Creating vertical wall at upper left corner (" + x + ", " + y + ")");
-                    createWall(x, y);
+                // Check for upper left corner
+                if (isUpperLeftCornerTile(map, x, y, 157)) {
+                    console.log("void with upper-left floor tile detected");
+                    if (hasTileWithGivenValueOnRight(map, x, y, 177) &&
+                        hasTileWithGivenValueBelow(map, x, y, 177)) {
+                        console.log("making a corner wall"); 
+                        createWall(x - 1, y);
+                    }
                 }
-                if (isOnlyUpperRightCornerTile(map, x, y, 157)) {
-                    // Create a vertical wall at the upper right corner
-                    console.log("Creating vertical wall at upper right corner (" + x + ", " + y + ")");
-                    createWall(x, y);
+                // Check for upper right corner
+                if (isUpperRightCornerTile(map, x, y, 157)) {
+                    console.log("void with upper-right floor tile detected");
+                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
+                        hasTileWithGivenValueBelow(map, x, y, 177)) {
+                        console.log("making a corner wall"); 
+                        createWall(x + 1, y);
+                    }
                 }
-                if (isOnlyLowerLeftCornerTile(map, x, y, 157)) {
-                    // Create a wall at the lower left corner
-                    console.log("Creating wall at lower left corner (" + x + ", " + y + ")");
-                    createVerticalWall(x, y);
+                // Check for lower left corner
+                if (isLowerLeftCornerTile(map, x, y, 157)) {
+                    console.log("void with lower-left floor tile detected");
+                    if (hasTileWithGivenValueOnRight(map, x, y, 177) &&
+                        hasTileWithGivenValueAbove(map, x, y, 177)) {
+                        console.log("making a corner wall"); 
+                        createVerticalWall(x - 1, y);
+                    }
                 }
-                if (isOnlyLowerRightCornerTile(map, x, y, 157)) {
-                    // Create a wall at the lower right corner
-                    console.log("Creating wall at lower right corner (" + x + ", " + y + ")");
-                    createVerticalWall(x, y);
+                // Check for lower right corner
+                if (isLowerRightCornerTile(map, x, y, 157)) {
+                    console.log("void with lower-right floor tile detected");
+                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
+                        hasTileWithGivenValueAbove(map, x, y, 177)) {
+                        console.log("making a corner wall");    
+                        createVerticalWall(x + 1, y);
+                    }
                 }
             }
         }
