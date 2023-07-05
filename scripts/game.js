@@ -380,19 +380,6 @@ function addFloorsAndVoid() {
     }
 }
 
-function isAdjacentToFloor(map, x, y, tileValue) {
-    const isAboveFloor = y > 0 && map[y - 1][x].value === tileValue; // Check Up
-    const isBelowFloor = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue; // Check Down
-    const isLeftFloor = x > 0 && map[y][x - 1].value === tileValue; // Check Left
-    const isRightFloor = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue; // Check Right
-
-    return isAboveFloor || isBelowFloor || isLeftFloor || isRightFloor;
-}
-
-function isAdjacentToFloorAbove(map, x, tileValue) {
-    return y > 0 && map[y - 1][x].value === tileValue; // Check Up
-}
-
 function isAdjacentToTileWithGivenValue(map, x, y, tileValue) {
     const isAbove = y > 1 && map[y - 1][x].value === tileValue; // Check Up
     const isBelow = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue; // Check Down
@@ -441,7 +428,7 @@ function hasTileWithGivenValueOnRight(map, x, y, tileValue) {
 }
 
 function hasTileWithGivenValueInMidAndLowerRight(map, x, y, tileValue) {
-    const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === 216;
+    const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
     const isMidRight = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
     const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
 
@@ -449,29 +436,28 @@ function hasTileWithGivenValueInMidAndLowerRight(map, x, y, tileValue) {
 }
 
 function hasTileWithGivenValueInMidAndLowerLeft(map, x, y, tileValue) {
-    const isUpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === 216;
+    const isUpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === tileValue;
     const isMidLeft = x > 0 && map[y][x - 1].value === tileValue;
     const isLowerLeft = x > 0 && y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue;
 
-    return isUpperLeft && isMidLeft && isLowerLeft;
+    return !isUpperLeft && isMidLeft && isLowerLeft;
 }
 
 function isOnlyUpperLeftCornerTile(map, x, y, tileValue) {
-    const aboveLeft = y > 0 && map[y - 1][x -1].value === tileValue;
+    const UpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === tileValue;
     const left = x > 0 && map[y][x - 1].value === tileValue;
     const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
     const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
 
-    return left && aboveLeft && !below && !right;
+    return left && UpperLeft && !below && !right;
 }
 
 function isUpperLeftCornerTile(map, x, y, tileValue) {
     // Check if y - 1 is within bounds
     if (y > 0) {
         // Check if x - 1 is within bounds, and map[y - 1][x - 1] exists with a 'value' property
-        if (x > 0 && map[y - 1][x - 1] && typeof map[y - 1][x - 1].value !== 'undefined') {
-            return map[y - 1][x - 1].value === tileValue;
-        }
+        const isUpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === tileValue;
+        return isUpperLeft;
     }
     return false;
 }
@@ -480,9 +466,8 @@ function isUpperRightCornerTile(map, x, y, tileValue) {
     // Check if y - 1 is within bounds
     if (y > 0) {
         // Check if x - 1 is within bounds, and map[y - 1][x + 1] exists with a 'value' property
-        if (x < MAP_WIDTH -1 && map[y - 1][x + 1] && typeof map[y - 1][x + 1].value !== 'undefined') {
-            return map[y - 1][x + 1].value === tileValue;
-        }
+        const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
+        return isUpperRight;
     }
     return false;
 }
@@ -492,9 +477,8 @@ function isLowerLeftCornerTile(map, x, y, tileValue) {
     // Check if y + 1 is within bounds
     if (y < map.length - 1) {
         // Check if x - 1 is within bounds
-        if (x > 0 && map[y + 1][x - 1] && typeof map[y + 1][x - 1].value !== 'undefined') {
-            return map[y + 1][x - 1].value === tileValue;
-        }
+        const isLowerLeft = x > 0 && y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue;
+        return isLowerLeft;
     }
     return false;
 }
@@ -504,9 +488,8 @@ function isLowerRightCornerTile(map, x, y, tileValue) {
     // Check if y + 1 is within bounds
     if (y < map.length - 1) {
         // Check if x - 1 is within bounds
-        if (x < MAP_WIDTH - 1 && map[y + 1][x - 1] && typeof map[y + 1][x - 1].value !== 'undefined') {
-            return map[y + 1][x - 1].value === tileValue;
-        }
+        const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
+        return isLowerRight;
     }
     return false;
 }
@@ -521,37 +504,37 @@ function fillWallCorners() {
                 // Check for upper left corner
                 if (isUpperLeftCornerTile(map, x, y, 157)) {
                     console.log("void with upper-left floor tile detected");
-                    if (hasTileWithGivenValueOnRight(map, x, y, 177) &&
-                        hasTileWithGivenValueBelow(map, x, y, 177)) {
+                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
+                        hasTileWithGivenValueAbove(map, x, y, 177)) {
                         console.log("making a corner wall"); 
-                        createWall(x - 1, y);
+                        createWall(x, y);
                     }
                 }
                 // Check for upper right corner
-                if (isUpperRightCornerTile(map, x, y, 157)) {
+                if (isUpperRightCornerTile(map, x, y, 157) && isLowerRightCornerTile(map,x,y,216)) {
                     console.log("void with upper-right floor tile detected");
-                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
-                        hasTileWithGivenValueBelow(map, x, y, 177)) {
+                    if (hasTileWithGivenValueAbove(map, x, y, 177) &&
+                        hasTileWithGivenValueOnRight(map, x, y, 177)) {
                         console.log("making a corner wall"); 
-                        createWall(x + 1, y);
+                        createWall(x, y);
                     }
-                }
+                } 
                 // Check for lower left corner
                 if (isLowerLeftCornerTile(map, x, y, 157)) {
                     console.log("void with lower-left floor tile detected");
-                    if (hasTileWithGivenValueOnRight(map, x, y, 177) &&
-                        hasTileWithGivenValueAbove(map, x, y, 177)) {
+                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
+                        hasTileWithGivenValueBelow(map, x, y, 177)) {
                         console.log("making a corner wall"); 
-                        createVerticalWall(x - 1, y);
+                        createVerticalWall(x, y);
                     }
                 }
                 // Check for lower right corner
                 if (isLowerRightCornerTile(map, x, y, 157)) {
                     console.log("void with lower-right floor tile detected");
-                    if (hasTileWithGivenValueOnLeft(map, x, y, 177) &&
-                        hasTileWithGivenValueAbove(map, x, y, 177)) {
+                    if (hasTileWithGivenValueOnRight(map, x, y, 177) &&
+                        hasTileWithGivenValueBelow(map, x, y, 177)) {
                         console.log("making a corner wall");    
-                        createVerticalWall(x + 1, y);
+                        createVerticalWall(x, y);
                     }
                 }
             }
