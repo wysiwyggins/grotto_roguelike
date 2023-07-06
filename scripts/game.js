@@ -397,6 +397,10 @@ function isTwoAbove(map, x, y, tileValue) {
     return y > 1 && map[y - 2][x].value === tileValue;
 }
 
+function isThreeAbove(map, x, y, tileValue) {
+    return y > 3 && map[y - 3][x].value === tileValue;
+}
+
 function isBelow(map, x, y, tileValue) {
     return y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
 }
@@ -495,7 +499,7 @@ function isLowerLeftCornerTile(map, x, y, tileValue) {
 function isLowerRightCornerTile(map, x, y, tileValue) {
     // Check if y + 1 is within bounds
     if (y < map.length - 1) {
-        // Check if x - 1 is within bounds
+        // Check if x + 1 is within bounds
         const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
         return isLowerRight;
     }
@@ -549,6 +553,9 @@ function fillWallCorners() {
                             createSprite(x, y, {x: 16, y: 5}, 131);
                     }
                 }
+                if (isOnRight(map,x,y,131) && isBelow(map,x,y,131) && isLowerRightCornerTile(map,x,y,177)){
+                    createSprite(x, y, {x: 16, y: 5}, 131);
+                }
 
             }
             if (map[y][x].value === 131) {
@@ -582,6 +589,7 @@ function addBaseAndShadows() {
         for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile is a floor
             if (map[y][x].value === 216) { 
+                
                 if (isUpperLeftCornerTile(map,x,y,216) && isAbove(map,x,y,177) && !isTwoAbove(map,x,y,127) && !isOnRight(map,x,y,177) && !isOnLeft(map,x,y,127)) {
                     createSprite(x,y,{x: 12, y: 5}, 127);
                 }
