@@ -58,9 +58,13 @@ class Player {
         this.type = type;
         this.x = x;
         this.y = y;
+        this.prevX = null;
+        this.prevY = null;
         this.footprintTile;
         this.headTile;
         this.sprite = null; 
+        
+        
         // You can set the specific footprint and head tiles for each player type here.
         switch(type) {
             case PlayerType.HUMAN:
@@ -102,6 +106,10 @@ class Player {
         }
     }
     move(direction) {
+        // Store previous position
+        this.prevX = this.x;
+        this.prevY = this.y;
+    
         // Convert player's tile position to pixel position
         let newX = this.x * TILE_WIDTH * SCALE_FACTOR;
         let newY = this.y * TILE_HEIGHT * SCALE_FACTOR;
@@ -134,12 +142,44 @@ class Player {
             }
         }
     
+        // Reset opacity of sprites that were previously occluded
+        if (this.prevX !== null && this.prevY !== null) { // Skip on the first move
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dx = -1; dx <= 1; dx++) {
+                    let y = this.prevY + dy;
+                    let x = this.prevX + dx;
+                    if (wallMap[y]?.[x]?.sprite) {
+                        wallMap[y][x].sprite.alpha = 1;
+                    }
+                    if (uiMap[y]?.[x]?.sprite) {
+                        uiMap[y][x].sprite.alpha = 1;
+                    }
+                }
+            }
+        }
+    
+        // Occlude nearby wall and UI sprites
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                let y = this.y + dy;
+                let x = this.x + dx;
+                if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) {
+                    createFloor(x,y);
+                    wallMap[y][x].sprite.alpha = 0.5;
+                }
+                if (uiMap[y]?.[x]?.sprite) {
+                    uiMap[y][x].sprite.alpha = 0.5;
+                }
+            }
+        }
+    
         // Update sprite positions
         this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
         this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
         this.sprite.overlay.x = this.sprite.footprint.x;
         this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
     }
+    
     
     
 }
@@ -195,6 +235,10 @@ function createSprite(x, y, position, layer, value = null) {
     sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
 
+    // Set initial opacity to 1
+    if (layer === wallMap || layer === uiMap) {
+        sprite.alpha = 1;
+    }
     if (layer === uiMap) {
         sprite.zIndex = 5;
         
