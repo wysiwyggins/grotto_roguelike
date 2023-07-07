@@ -21,13 +21,22 @@ const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
 const SPRITESHEET_COLUMNS = 23;
 const SPRITESHEET_ROWS = 11;
+//console.log('Initializing maps');
+let backgroundMap = createEmptyMap();
+let floorMap = createEmptyMap();
+let objectMap = createEmptyMap();
+let wallMap = createEmptyMap();
+let uiMap = createEmptyMap();
 
-let map = new Array(MAP_HEIGHT);
-for (let y = 0; y < MAP_HEIGHT; y++) {
-    map[y] = new Array(MAP_WIDTH);
-    for (let x = 0; x < MAP_WIDTH; x++) {
-        map[y][x] = 0; // 0 will represent an empty tile, you can use other numbers to represent other types of tiles
+function createEmptyMap() {
+    let map = new Array(MAP_HEIGHT);
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        map[y] = new Array(MAP_WIDTH);
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            map[y][x] = 0;
+        }
     }
+    return map;
 }
 
 // Load the spritesheet using the global PIXI.Loader object
@@ -119,7 +128,7 @@ class Player {
     
         // Check for collisions or going out of bounds
         if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
-            if (map[newTileY][newTileX]?.value === 157) {
+            if (floorMap[newTileY][newTileX]?.value === 157 && !objectMap[newTileY][newTileX]?.value) {
                 this.x = newTileX;
                 this.y = newTileY;
             }
@@ -165,14 +174,14 @@ function createPlayerSprite(player) {
 
 }
 
-function createSprite(x, y, position, value = null) {
-    if (!map[y]) {
-        map[y] = [];
+function createSprite(x, y, position, layer, value = null) {
+    if (!layer[y]) {
+        layer[y] = [];
     }
 
     // If a sprite already exists at this position, remove it from the stage
-    if (map[y][x] && map[y][x].sprite) {
-        app.stage.removeChild(map[y][x].sprite);
+    if (layer?.[y]?.[x]?.sprite) {
+        app.stage.removeChild(layer[y][x].sprite);
     }
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
@@ -180,23 +189,75 @@ function createSprite(x, y, position, value = null) {
         position.x * TILE_WIDTH,
         position.y * TILE_HEIGHT,
         TILE_WIDTH, TILE_HEIGHT));
-    
+
     let sprite = new PIXI.Sprite(texture);
     sprite.scale.set(SCALE_FACTOR);
     sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
-    
+
+    if (layer === uiMap) {
+        sprite.zIndex = 5;
+        
+        // Remove sprites on all layers beneath the UI layer if they exist at the same position
+        if (wallMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(wallMap[y][x].sprite);
+            wallMap[y][x].sprite = null;
+        }
+        if (objectMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(objectMap[y][x].sprite);
+            objectMap[y][x].sprite = null;
+        }
+        if (floorMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(floorMap[y][x].sprite);
+            floorMap[y][x].sprite = null;
+        }
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(backgroundMap[y][x].sprite);
+            backgroundMap[y][x].sprite = null;
+        }
+    } else if (layer === wallMap) {
+        sprite.zIndex = 3;
+
+        // Remove sprites on layers beneath the wall layer if they exist at the same position
+        if (floorMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(floorMap[y][x].sprite);
+            floorMap[y][x].sprite = null;
+        }
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(backgroundMap[y][x].sprite);
+            backgroundMap[y][x].sprite = null;
+        }
+    } else if (layer === objectMap) {
+        sprite.zIndex = 2; // Set zIndex for objectMap
+    } else if (layer === floorMap) {
+        sprite.zIndex = 1;
+        
+        // Remove sprites on the background layer if they exist at the same position
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            app.stage.removeChild(backgroundMap[y][x].sprite);
+            backgroundMap[y][x].sprite = null;
+        }
+    }
+
     app.stage.addChild(sprite);
 
-    // If value is not provided, keep the existing value or set to null
-    let existingValue = map[y][x] ? map[y][x].value : null;
-    map[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
+    let existingValue = layer[y][x] ? layer[y][x].value : null;
+    layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
+
+    // Update zIndex for objectMap based on y position compared to walls
+    if (layer === objectMap && wallMap?.[y]?.[x]?.sprite) {
+        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+            sprite.zIndex = 4; // Object is behind the wall
+        }
+    }
 }
 
 
+
+
 function overlaySprite(x, y, position, value = null) {
-    if (!map[y]) {
-        map[y] = [];
+    if (!floorMap[y]) {
+        floorMap[y] = [];
     }
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
@@ -213,15 +274,15 @@ function overlaySprite(x, y, position, value = null) {
     app.stage.addChild(sprite);
 
     // If value is not provided, keep the existing value or set to null
-    let existingValue = map[y][x] ? map[y][x].value : null;
-    map[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
+    let existingValue = floorMap[y][x] ? floorMap[y][x].value : null;
+    floorMap[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
 }
 
 
 function createVoid(x, y) {
-    createSprite(x, y, {x: 9, y: 9}, 216);
+    createSprite(x, y, {x: 9, y: 9}, backgroundMap, 216);
 
-    let sprite = map[y][x].sprite;
+    let sprite = backgroundMap[y][x].sprite;
 
     // Set the transformation origin to the center of the sprite
     sprite.anchor.set(0.5, 0.5);
@@ -241,113 +302,22 @@ function createVoid(x, y) {
 
 
 function createFloor(x, y) {
-    createSprite(x, y, {x: 19, y: 6}, 157);
+    createSprite(x, y, {x: 19, y: 6}, floorMap, 157);
 }
 
 function createWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}, 177); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, 131); // top
+    createSprite(x, y, {x: 16, y: 7}, floorMap, 177); // footprint
+    createSprite(x, y - 1, {x: 16, y: 7}, wallMap, 177); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
 }
-
 function createVerticalWall(x, y) {
-    console.log("a vertical wall!")
-    createSprite(x, y, {x: 16, y: 5}, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 5}); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}); // top
+    if (wallMap[y][x] !== 131 && wallMap[y][x] !== 177){
+        createSprite(x, y, {x: 16, y: 5}, floorMap, 177); // footprint
+        createSprite(x, y - 1, {x: 16, y: 5}, wallMap, 177); // middle
+    }
+    createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
 }
 
-function createTransparentVerticalWall(x, y) {
-    createSprite(x, y, {x: 16, y: 5}, 177); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 5}); // middle
-    overlaySprite(x, y - 2, {x: 16, y: 5}); // top
-}
-
-function createTransparentWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, 177); // footprint
-    overlaySprite(x, y - 1, {x: 16, y: 7}, 157); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}); // top
-}
-
-function createRoom(x, y, width, height) {
-    // Create the floor
-    for (let i = x + 1; i < x + width - 1; i++) {
-        for (let j = y + 1; j < y + height - 1; j++) {
-            //console.log(`Creating floor at ${i}, ${j}`); // <-- Console log added
-            createFloor(i, j);
-        }
-    }
-
-    // Create the walls
-    for (let i = x; i < x + width; i++) {
-        //console.log(`Creating top wall at ${i}, ${y}`); // <-- Console log added
-        createWall(i, y); // Top wall
-        //console.log(`Creating bottom wall at ${i}, ${y + height - 1}`); // <-- Console log added
-        createWall(i, y + height - 1); // Bottom wall
-    }
-    for (let j = y; j < y + height; j++) {
-        //console.log(`Creating left wall at ${x}, ${j}`); // <-- Console log added
-        createWall(x, j); // Left wall
-        //console.log(`Creating right wall at ${x + width - 1}, ${j}`); // <-- Console log added
-        createWall(x + width - 1, j); // Right wall
-    }
-}
-
-function createSimpleHallway(room1, room2) {
-    // Calculate the center of the first room
-    let center1 = {
-        x: room1.x + Math.floor(room1.width / 2),
-        y: room1.y + Math.floor(room1.height / 2)
-    };
-
-    // Calculate the center of the second room
-    let center2 = {
-        x: room2.x + Math.floor(room2.width / 2),
-        y: room2.y + Math.floor(room2.height / 2)
-    };
-
-    // Determine the start and end coordinates of the hallway
-    let startX = Math.min(center1.x, center2.x);
-    let endX = Math.max(center1.x, center2.x);
-    let startY = Math.min(center1.y, center2.y);
-    let endY = Math.max(center1.y, center2.y);
-
-    // Draw a straight horizontal hallway from the center of the first room to the center of the second room
-    for (let x = startX; x <= endX; x++) {
-
-        // Create walls above the hallway, but not within the intersecting rooms
-        if(map[center1.y - 1][x]?.value !== 157) {
-            createWall(x, center1.y - 1);
-        }
-        createFloor(x,center1.y);
-        
-        // Create walls below the hallway, but do not overlap with existing walls
-        if(map[center1.y + 1][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 131 && map[center1.y + 2][x]?.value !== 157 && map[center1.y + 1][x]?.value !== 177) {
-            createTransparentWall(x, center1.y + 1);
-        } else if (map[center1.y + 1][x]?.value !== 157){
-            createTransparentVerticalWall(x, center1.y + 1);
-        }
-    
-    }
-
-    // Draw a straight vertical hallway from the end of the horizontal hallway to the center of the second room
-    for (let y = startY; y <= endY; y++) {
-
-        // Create walls to the left and right of the hallway, but not within the top intersecting room
-        if(map[y][center2.x - 1]?.value !== 157 && map[y -1][center2.x - 1]?.value !== 131  && map[y - 1][center2.x - 1]?.value !== 157) {
-            createWall(center2.x - 1, y);
-        }
-        createFloor(center2.x, y);
-        if(map[y][center2.x + 1]?.value !== 157 && map[y -1][center2.x + 1]?.value !== 131 &&map[y - 1][center2.x + 1]?.value !== 157) {
-            createWall(center2.x + 1, y);
-        }
-    }
-
-    // Extend the wall of the vertical hallway into the intersecting room
-    if(map[endY + 1][center2.x]?.value !== 157 && map[endY + 1][center2.x - 1]?.value !== 157 && endY + 1 !== room2.y + room2.height - 1) {
-        createWall(center2.x, endY + 1);
-    }
-}
 
 // dungeon generator
 function dungeonGeneration() {
@@ -358,10 +328,10 @@ function dungeonGeneration() {
     const callback = (x, y, value) => {
         if (value === 0) {
             // 0 represents a floor tile
-            map[y][x] = 157; // 157 is the floor tile representation in the game
+            floorMap[y][x] = 157; // 157 is the floor tile representation in the game
         } else {
             // 1 represents a wall or void
-            map[y][x] = 216; // 216 is the void tile representation in the game
+            backgroundMap[y][x] = 216; // 216 is the void tile representation in the game
         }
     };
     
@@ -371,9 +341,9 @@ function dungeonGeneration() {
 function addFloorsAndVoid() {
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            if (map[y][x] === 157) {
+            if (floorMap[y][x] === 157) {
                 createFloor(x, y);
-            } else if (map[y][x] === 216) {
+            } else if (backgroundMap[y][x] === 216) {
                 createVoid(x, y);
             }
         }
@@ -506,122 +476,29 @@ function isLowerRightCornerTile(map, x, y, tileValue) {
     return false;
 }
 
-function fillWallCorners() {
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-            // Check if the current tile is a floor
-            if (map[y][x].value === 216) {
-                // Check for upper left corner
-                if (isUpperLeftCornerTile(map, x, y, 157)) {
-                    console.log("void with upper-left floor tile detected");
-                    if (isOnLeft(map, x, y, 177) &&
-                        isAbove(map, x, y, 177)) {
-                        console.log("making a corner wall"); 
-                        createWall(x, y);
-                    }
-                }
-                // Check for upper right corner
-                if (isUpperRightCornerTile(map, x, y, 157)) {
-                    console.log("void with upper-right floor tile detected");
-                    if (isAbove(map, x, y, 177) &&
-                        isOnRight(map, x, y, 177)) {
-                        console.log("making a corner wall"); 
-                        createWall(x, y);
-                    }
-                } 
-
-                if (isLowerLeftCornerTile(map, x, y, 157)) {
-                    //console.log("void with lower-left floor tile detected");
-                    if (isOnLeft(map, x, y, 177) &&
-                        isBelow(map, x, y, 131) || isBelow(map,x,y,177)) {
-                        console.log("making a corner wall"); 
-                        createVerticalWall(x, y);
-                    }
-                }
-                if (isLowerRightCornerTile(map, x, y, 157)) {
-                    //console.log("void with lower-right floor tile detected");
-                    if (isOnRight(map, x, y, 177) &&
-                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177))) {
-                        console.log("making a corner wall");    
-                        createVerticalWall(x, y);
-                    }
-                }
-
-                if (isLowerLeftCornerTile(map, x, y, 177)) {
-                    if (isOnLeft(map, x, y, 131) &&
-                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177))) {
-                            createSprite(x, y, {x: 16, y: 5}, 131);
-                    }
-                }
-                if (isOnRight(map,x,y,131) && isBelow(map,x,y,131) && isLowerRightCornerTile(map,x,y,177)){
-                    createSprite(x, y, {x: 16, y: 5}, 131);
-                }
-
-            }
-            if (map[y][x].value === 131) {
-
-                // Check for lower left corner
-                if (isLowerLeftCornerTile(map, x, y, 157)) {
-                    console.log("void with lower-left floor tile detected");
-                    if (isOnLeft(map, x, y, 177) &&
-                        (isBelow(map, x, y, 131) || isBelow(map,x,y,177)) ) {
-                        console.log("making a corner wall"); 
-                        createVerticalWall(x, y);
-                    }
-                }
-                // Check for lower right corner
-                if (isLowerRightCornerTile(map, x, y, 157)) {
-                    console.log("void with lower-right floor tile detected");
-                    if (isOnRight(map, x, y, 177) &&
-                        (isBelow(map, x, y, 131) || isBelow(map, x, y, 177)) ) {
-                        console.log("making a corner wall");    
-                        createVerticalWall(x, y);
-                    }
-                }
-            }
-        }
-    }
-}
-
 function addBaseAndShadows() {
     console.log("adding shadows");
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile is a floor
-            if (map[y][x].value === 216) { 
-                
-                if (isUpperLeftCornerTile(map,x,y,216) && isAbove(map,x,y,177) && !isTwoAbove(map,x,y,127) && !isOnRight(map,x,y,177) && !isOnLeft(map,x,y,127)) {
-                    createSprite(x,y,{x: 12, y: 5}, 127);
+            if (backgroundMap[y][x].value === 216 && floorMap[y][x].value !== 177 && wallMap[y][x].value !== 177 && wallMap[y][x].value !== 131) { 
+                if (!isUpperLeftCornerTile(floorMap, x,y,177) && isAbove(floorMap, x, y, 177) ) {
+                    createSprite(x,y,{x: 12, y: 5},backgroundMap, 127);
                 }
-                if ((isOnLeft(map,x,y,131) || isOnLeft(map,x,y,177)) && !isTwoAbove(map,x,y,127) && isAbove(map,x,y,177)){
-                    createSprite(x,y,{x: 12, y: 5}, 127);
+                if ((isOnLeft(wallMap, x,y,177) || isOnLeft(wallMap, x,y,131) || isOnLeft(floorMap, x,y,177)) && isAbove(floorMap, x, y, 177) ) {
+                    createSprite(x,y,{x: 12, y: 5},backgroundMap, 127);
                 }
-                if (isOnLeft(map,x,y,127)  && isAbove(map,x,y,177)){
+                if ((isUpperLeftCornerTile(backgroundMap,x,y,127) && isAbove(backgroundMap,x,y,177))){
+                    createSprite(x,y,{x: 12, y: 5},backgroundMap, 127);
+                }
+
+                if ((isOnLeft(backgroundMap,x,y,127)) && wallMap[y][x].value !== 177 && floorMap[y][x].value !== 177  && (isAbove(floorMap,x,y,177) || isAbove(backgroundMap,x,y,177))){
                     let xPos = x; // Start checking from the tile to the right of the current tile
-                    while (y > 1 && xPos < MAP_WIDTH -1 && map[y][xPos].value === 216 && !isAbove(
-                        map,xPos,y,127) && (map[y - 2][xPos].value === 157 ||map[y - 2][xPos].value === 177)) {
-                        createSprite(xPos, y, {x: 16, y: 7}, 177);
+                    while (y > 1 && xPos < MAP_WIDTH -1 && floorMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 131 && backgroundMap[y][xPos].value === 216 && (isAbove(floorMap,xPos,y,177) || isAbove(backgroundMap,xPos,y,177))) {
+                        createSprite(xPos, y, {x: 16, y: 7},backgroundMap, 177);
                         xPos++; // Move to the next tile to the right
                     }
                 }
-                if ((isUpperLeftCornerTile(map,x,y,127) && isTwoAbove(map,x,y,177)) || isOnLeft(map,x,y,127) && isBelow(map,x,y,127)){
-                    createSprite(x,y,{x: 12, y: 5}, 127);
-                }
-
-                
-            }
-        }
-    }
-}
-
-function connectHallways() {
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-        for (let x = 0; x < MAP_WIDTH; x++) {
-            if (map[y][x].value === 131) {
-                if (isOnLeft(map,x,y,157)&& isOnRight(map,x,y,157)){
-                    createFloor(x,y);
-                    overlaySprite(x, y, {x: 16, y: 5});
-                } 
             }
             
         }
@@ -629,36 +506,34 @@ function connectHallways() {
 }
 
 
-function evaluateMapAndCreateWalls(map) {
+
+function evaluateMapAndCreateWalls() {
     // Loop through each row
     for (let y = 0; y < MAP_HEIGHT; y++) {
         // Loop through each column
         for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile has a value of 216
-            if (map[y][x].value === 216) {
+            if (backgroundMap[y][x].value === 216) {
                 //console.log("I found a void at (" + x + ", " + y + ")");
 
                 // First, check for vertical walls
                 // Check if adjacent to floor
-                let isAdjacentToFloorAbove = isAbove(map, x, y, 157);
+                let isAdjacentToFloorAbove = isAbove(floorMap, x, y, 157);
                 
                 let isAdjacentToFloor =
                     isAdjacentToFloorAbove ||
-                    isBelow(map, x, y, 157) ||
-                    isOnLeft(map, x, y, 157) ||
-                    isOnRight(map, x, y, 157);
+                    isBelow(floorMap, x, y, 157) ||
+                    isOnLeft(floorMap, x, y, 157) ||
+                    isOnRight(floorMap, x, y, 157);
 
                 if (isAdjacentToFloor) {
                     if (isAdjacentToFloorAbove) {
-                        // Run the createTransparentWall function at this location (x, y)
-                        //console.log("Creating transparent wall at (" + x + ", " + y + ")");
-                        createTransparentWall(x, y);
+                        createWall(x, y);
                     } else {
-                        // Run the createWall function at this location (x, y)
-                        //console.log("Creating wall at (" + x + ", " + y + ")");
                         createWall(x, y);
                     }
-                } else {
+                } else if (isLowerLeftCornerTile(floorMap, x, y, 157) || isLowerRightCornerTile(floorMap, x, y, 157) || isUpperLeftCornerTile(floorMap, x, y, 157) || isUpperRightCornerTile(floorMap, x, y, 157)){
+                    createWall(x, y);
                     //console.log("Void at (" + x + ", " + y + ") is NOT adjacent to a floor");
                 }
             }
@@ -679,34 +554,34 @@ function drawUIBox(message) {
     const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
     const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
     const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
-    const BLANK_TILE = { x: 0, y: 0};
+    const BLANK_TILE = { x: 21, y: 7};
 
     // Draw the top border of the box
-    createSprite(0, 0, BORDER_TOP_LEFT, 214);
+    createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, 0, BORDER_HORIZONTAL, 196);
+        createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
     }
-    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT, 191);
+    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
 
     // Draw the bottom border of the box
-    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT, 192);
+    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
     for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL, 196);
+        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
     }
-    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT, 217);
+    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
 
     // Draw the vertical borders and the message
     for (let y = 1; y < BOX_HEIGHT - 1; y++) {
-        createSprite(0, y, BORDER_VERTICAL, 179);
-        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL, 179);
+        createSprite(0, y, BORDER_VERTICAL,uiMap, 179);
+        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL,uiMap, 179);
         for(let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, y, BLANK_TILE, 0);
+            createSprite(x, y, BLANK_TILE,uiMap, 0);
         }
         // Write the message
         if (y === Math.floor(BOX_HEIGHT / 2)) {
             for (let i = 0; i < message.length; i++) {
                 let spriteLocation = charToSpriteLocation(message.charAt(i));
-                createSprite(i + 1, y, spriteLocation, message.charCodeAt(i));
+                createSprite(i + 1, y, spriteLocation,uiMap, message.charCodeAt(i));
             }
         }
     }
@@ -759,16 +634,15 @@ class MessageList {
 function setup() {
     dungeonGeneration();
     addFloorsAndVoid();
-    evaluateMapAndCreateWalls(map);
-    fillWallCorners();
+    evaluateMapAndCreateWalls(floorMap);
+    
     addBaseAndShadows();
-    connectHallways();
 
 
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
-            if (map[y][x].value === 157) {
+            if (floorMap[y][x].value === 157) {
                 walkableTiles.push({x: x, y: y});
             }
         }
