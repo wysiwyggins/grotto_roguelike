@@ -40,9 +40,21 @@ function createEmptyMap() {
     }
     return map;
 }
-
+let fireFrames = [];
 // Load the spritesheet using the global PIXI.Loader object
-PIXI.Loader.shared.add('tiles', SPRITESHEET_PATH).load(setup);
+PIXI.Loader.shared
+    .add('tiles', SPRITESHEET_PATH)
+    .add('fire', 'assets/spritesheets/fire.png')
+    .load(setup);
+
+
+PIXI.Loader.shared.onComplete.add(() => {
+    for (let i = 0; i < 4; i++) { // assuming you have 4 frames of fire animation
+        let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+        let texture = new PIXI.Texture(PIXI.Loader.shared.resources.fire.texture.baseTexture, rect);
+        fireFrames.push(texture);
+    }
+});
 
 const PlayerType = Object.freeze({
     "HUMAN": 0,
@@ -56,7 +68,7 @@ const PlayerType = Object.freeze({
 });
 
 class Player {
-    constructor(type, x, y) {
+    constructor(type, x, y, scheduler, engine) {
         this.type = type;
         this.x = x;
         this.y = y;
@@ -68,6 +80,12 @@ class Player {
         this.headShadowTile = {x: 14, y: 9};
         this.footShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
+        this.footShadowTile.zIndex = 1.5;
+        this.scheduler = scheduler;
+        this.engine = engine;
+        window.addEventListener('keydown', (event) => {
+            this.handleKeydown(event);
+        });
         
         
         // You can set the specific footprint and head tiles for each player type here.
@@ -205,7 +223,33 @@ class Player {
         this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
 
 
-        engine.lock(); // end the player's turn
+    }
+    handleKeydown(event) {
+        switch (event.key) {
+            case 'ArrowUp':
+                this.move('up');
+                break;
+            case 'ArrowDown':
+                this.move('down');
+                break;
+            case 'ArrowLeft':
+                this.move('left');
+                break;
+            case 'ArrowRight':
+                this.move('right');
+                break;
+            default:
+                return;  // Ignore all other keys
+        }
+
+        // Ensure that we only unlock the engine if it's locked
+        if (this.engine._lock) {
+            this.engine.unlock();  // After moving, unlock the engine for the next turn
+        }
+    }
+
+    act() {
+        this.engine.lock(); // Lock the engine until we get a valid move
     }
     
 }
@@ -264,6 +308,80 @@ function createPlayerSprite(player) {
     player.sprite.shadow= spriteShadow;
 
 }
+
+class Fire {
+    constructor(x, y, scheduler) {
+        this.x = x;
+        this.y = y;
+        this.scheduler = scheduler;
+        this.turnsLeft = 5; // maximum number of turns this fire can create more fires
+
+        this.sprite = new PIXI.AnimatedSprite(fireFrames);
+        this.sprite.animationSpeed = 0.1;
+        this.sprite.loop = true;
+        this.sprite.play();
+        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);  // Adjust position with SCALE_FACTOR
+        this.sprite.scale.set(SCALE_FACTOR);  // Adjust scale with SCALE_FACTOR
+        this.sprite.zIndex = 2;
+        app.stage.addChild(this.sprite);
+
+        if (!objectMap[this.y]) {
+            objectMap[this.y] = [];
+        }
+        objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
+    }
+
+    act() {
+        // Decrease turns left, if it reaches 0, stop spreading and destroy the sprite
+        if (--this.turnsLeft <= 0) {
+            this.sprite.destroy();
+            this.scheduler.remove(this);
+            objectMap[this.y][this.x] = null;
+            return;
+        }
+    
+        // 50% chance to spread the fire
+        if (Math.random() < 0.3) {
+            let directions = [
+                [-1, 0], // left
+                [1, 0], // right
+                [0, -1], // up
+                [0, 1] // down
+            ];
+            for (let direction of directions) {
+                let newX = this.x + direction[0];
+                let newY = this.y + direction[1];
+                // Check if the new spot is valid and not already on fire
+                if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
+                    floorMap[newY][newX].value === 157 && objectMap[newY][newX] !== 300) {
+                    
+                    let fire = new Fire(newX, newY, this.scheduler);
+                    
+                    if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
+                        // Set the transformation origin to the center of the sprite
+                        fire.sprite.anchor.set(0.5, 0.5);
+    
+                        // Flip horizontally
+                        fire.sprite.scale.x *= -1;
+    
+                        // Adjust sprite's position due to anchor change
+                        fire.sprite.x += TILE_WIDTH * SCALE_FACTOR / 2;
+                        fire.sprite.y += TILE_HEIGHT * SCALE_FACTOR / 2;
+                    }
+                    
+                    this.scheduler.add(fire, true); 
+                    objectMap[newY][newX] = 300;  
+                    break;
+                } 
+            }
+        }
+    }
+    
+    
+    
+}
+
+
 
 function createSprite(x, y, position, layer, value = null) {
     if (!layer[y]) {
@@ -744,35 +862,29 @@ function setup() {
 
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
-    let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y);
-    createPlayerSprite(player);
-
-    window.addEventListener('keydown', function(event) {
-        switch (event.key) {
-            case 'ArrowUp':
-                player.move('up');
-                break;
-            case 'ArrowDown':
-                player.move('down');
-                break;
-            case 'ArrowLeft':
-                player.move('left');
-                break;
-            case 'ArrowRight':
-                player.move('right');
-                break;
-            default:
-                break;
-        }
-    });
-
     const messageList = new MessageList();
     messageList.render();
 
-    let scheduler = new ROT.Scheduler.Simple();
-    let engine = new ROT.Engine(scheduler);
+    PIXI.Loader.shared.onComplete.add(() => {
+        for (let i = 0; i < 7; i++) { // assuming you have 4 frames of fire animation
+            let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+            let texture = new PIXI.Texture(PIXI.Loader.shared.resources.fire.texture.baseTexture, rect);
+            fireFrames.push(texture);
+        }
 
-    scheduler.add(player, true); // the player takes turns
+        let scheduler = new ROT.Scheduler.Simple();
+        let engine = new ROT.Engine(scheduler);
+        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine);
+        createPlayerSprite(player);
+        scheduler.add(player, true); // the player takes turns
 
-    engine.start(); // start the engine
+        //add some fire
+        for (let i = 0; i < 3; i++) {
+            let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+            let fire = new Fire(randomTile.x, randomTile.y, scheduler);
+            scheduler.add(fire, true); // the fire takes turns
+        }
+
+        engine.start(); // start the engine
+    });
 }
