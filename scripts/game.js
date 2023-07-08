@@ -62,7 +62,10 @@ class Player {
         this.prevY = null;
         this.footprintTile;
         this.headTile;
-        this.sprite = null; 
+        this.sprite = {}; 
+        this.headShadowTile = {x: 14, y: 9};
+        this.footShadowTile = {x: 8, y: 6};
+        this.sprite.shadow = null;
         
         
         // You can set the specific footprint and head tiles for each player type here.
@@ -141,6 +144,24 @@ class Player {
                 this.y = newTileY;
             }
         }
+        
+        let headTileY = this.y - 1;
+        let isFrontOfWall = floorMap[headTileY]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the head
+        this.sprite.shadow.visible = isFrontOfWall;
+
+        if (isFrontOfWall) {
+            this.sprite.shadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position shadow to the right of the head
+            this.sprite.shadow.y = headTileY * TILE_HEIGHT * SCALE_FACTOR;
+        }
+
+        // Handle visibility and positioning of the foot shadow
+        let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the footprint
+        this.sprite.footShadow.visible = isBesideFloor;
+
+        if (isBesideFloor) {
+            this.sprite.footShadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position foot shadow to the right of the footprint
+            this.sprite.footShadow.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        }
     
         // Reset opacity of sprites that were previously occluded
         if (this.prevX !== null && this.prevY !== null) { // Skip on the first move
@@ -185,6 +206,7 @@ class Player {
 }
 
 function createPlayerSprite(player) {
+   
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         player.footprintPosition.x * TILE_WIDTH, 
@@ -211,6 +233,31 @@ function createPlayerSprite(player) {
     app.stage.addChild(spriteOverlay);
 
     player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
+    let shadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        player.headShadowTile.x * TILE_WIDTH, 
+        player.headShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteShadow = new PIXI.Sprite(shadowTexture);
+    spriteShadow.scale.set(SCALE_FACTOR);
+    spriteShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
+    spriteShadow.visible = false;
+    
+    let footShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        player.footShadowTile.x * TILE_WIDTH, 
+        player.footShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteFootShadow = new PIXI.Sprite(footShadowTexture);
+    spriteFootShadow.scale.set(SCALE_FACTOR);
+    spriteFootShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the shadow
+    spriteFootShadow.visible = false;
+
+    app.stage.addChild(spriteFootShadow);
+
+    player.sprite.footShadow = spriteFootShadow;
+
+    app.stage.addChild(spriteShadow);
+    
+    player.sprite.shadow= spriteShadow;
 
 }
 
