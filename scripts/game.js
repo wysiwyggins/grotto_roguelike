@@ -40,21 +40,30 @@ function createEmptyMap() {
     }
     return map;
 }
+
 let fireFrames = [];
+let smokeFrames = [];
 // Load the spritesheet using the global PIXI.Loader object
 PIXI.Loader.shared
     .add('tiles', SPRITESHEET_PATH)
     .add('fire', 'assets/spritesheets/fire.png')
+    .add('smoke', 'assets/spritesheets/smoke.png')
     .load(setup);
 
 
 PIXI.Loader.shared.onComplete.add(() => {
-    for (let i = 0; i < 4; i++) { // assuming you have 4 frames of fire animation
+    for (let i = 0; i < 7; i++) {
         let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
         let texture = new PIXI.Texture(PIXI.Loader.shared.resources.fire.texture.baseTexture, rect);
         fireFrames.push(texture);
     }
+    for (let i = 0; i < 7; i++) {
+        let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+        let texture = new PIXI.Texture(PIXI.Loader.shared.resources.smoke.texture.baseTexture, rect);
+        smokeFrames.push(texture);
+    }
 });
+console.log(smokeFrames);
 
 const PlayerType = Object.freeze({
     "HUMAN": 0,
@@ -68,7 +77,7 @@ const PlayerType = Object.freeze({
 });
 
 class Player {
-    constructor(type, x, y, scheduler, engine) {
+    constructor(type, x, y, scheduler, engine, messageList) {
         this.type = type;
         this.x = x;
         this.y = y;
@@ -77,12 +86,15 @@ class Player {
         this.footprintTile;
         this.headTile;
         this.sprite = {}; 
+        this.attemptingFireEntry = false;
+        this.fireEntryDirection = null;
         this.headShadowTile = {x: 14, y: 9};
         this.footShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
         this.footShadowTile.zIndex = 1.5;
         this.scheduler = scheduler;
         this.engine = engine;
+        this.messageList = messageList;
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
         });
@@ -161,11 +173,34 @@ class Player {
     
         // Check for collisions or going out of bounds
         if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
-            if (floorMap[newTileY][newTileX]?.value === 157 && !objectMap[newTileY][newTileX]?.value) {
+            let floorTileValue = floorMap[newTileY][newTileX]?.value;
+            let objectTileValue = objectMap[newTileY][newTileX]?.value;
+
+            if (floorTileValue === 157 && (!objectTileValue || objectTileValue < 300)) {
                 this.x = newTileX;
                 this.y = newTileY;
+                this.attemptingFireEntry = false;
+                this.fireEntryDirection = null;
+            } else if (objectTileValue === 300) {
+                if (this.attemptingFireEntry && this.fireEntryDirection === direction) {
+                    this.x = newTileX;
+                    this.y = newTileY;
+                    this.attemptingFireEntry = false;
+                    this.fireEntryDirection = null;
+                } else {
+                    this.attemptingFireEntry = true;
+                    this.fireEntryDirection = direction;
+                    console.log("Walk into the fire?");
+                    this.messageList.addMessage("Walk into the fire?");
+                }
+            } else {
+                this.attemptingFireEntry = false;
+                this.fireEntryDirection = null;
             }
         }
+
+
+        //shadow stuff
         
         let headTileY = this.y - 1;
         let isFrontOfWall = floorMap[headTileY]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the head
@@ -177,7 +212,7 @@ class Player {
         }
 
         // Handle visibility and positioning of the foot shadow
-        let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the footprint
+        let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 && wallMap[headTileY]?.[this.x + 1]?.value !== 131 && objectMap[headTileY]?.[this.x + 1]?.value !== 300; // check the tile to the right of the footprint
         this.sprite.footShadow.visible = isBesideFloor;
 
         if (isBesideFloor) {
@@ -225,21 +260,40 @@ class Player {
 
     }
     handleKeydown(event) {
-        switch (event.key) {
-            case 'ArrowUp':
-                this.move('up');
-                break;
-            case 'ArrowDown':
-                this.move('down');
-                break;
-            case 'ArrowLeft':
-                this.move('left');
-                break;
-            case 'ArrowRight':
-                this.move('right');
-                break;
-            default:
-                return;  // Ignore all other keys
+        if (this.attemptingFireEntry) {
+            switch (event.key) {
+                case 'ArrowUp':
+                    this.move(this.fireEntryDirection === 'up' ? 'up' : null);
+                    break;
+                case 'ArrowDown':
+                    this.move(this.fireEntryDirection === 'down' ? 'down' : null);
+                    break;
+                case 'ArrowLeft':
+                    this.move(this.fireEntryDirection === 'left' ? 'left' : null);
+                    break;
+                case 'ArrowRight':
+                    this.move(this.fireEntryDirection === 'right' ? 'right' : null);
+                    break;
+                default:
+                    return;  // Ignore all other keys
+            }
+        } else {
+            switch (event.key) {
+                case 'ArrowUp':
+                    this.move('up');
+                    break;
+                case 'ArrowDown':
+                    this.move('down');
+                    break;
+                case 'ArrowLeft':
+                    this.move('left');
+                    break;
+                case 'ArrowRight':
+                    this.move('right');
+                    break;
+                default:
+                    return;  // Ignore all other keys
+            }
         }
 
         // Ensure that we only unlock the engine if it's locked
@@ -353,32 +407,70 @@ class Fire {
                 let newY = this.y + direction[1];
                 // Check if the new spot is valid and not already on fire
                 if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
-                    floorMap[newY][newX].value === 157 && objectMap[newY][newX] !== 300) {
-                    
+                    floorMap[newY][newX].value === 157 && 
+                    (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
+                
                     let fire = new Fire(newX, newY, this.scheduler);
-                    
+                                    
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
                         // Set the transformation origin to the center of the sprite
                         fire.sprite.anchor.set(0.5, 0.5);
-    
+                
                         // Flip horizontally
                         fire.sprite.scale.x *= -1;
-    
+                
                         // Adjust sprite's position due to anchor change
                         fire.sprite.x += TILE_WIDTH * SCALE_FACTOR / 2;
                         fire.sprite.y += TILE_HEIGHT * SCALE_FACTOR / 2;
                     }
-                    
+                                    
                     this.scheduler.add(fire, true); 
-                    objectMap[newY][newX] = 300;  
                     break;
-                } 
+                }
+            }
+        }
+        if (Math.random() < 0.5) {
+            let newY = this.y - 1; // the tile above the current one
+            if (newY >= 0 && floorMap[newY][this.x].value !== 177 && objectMap[newY][this.x] === null) {
+                let smoke = new Smoke(this.x, newY, this.scheduler);
+                this.scheduler.add(smoke, true);
             }
         }
     }
     
     
     
+}
+
+class Smoke {
+    constructor(x, y, scheduler) {
+        console.log("Creating smoke")
+        this.x = x;
+        this.y = y;
+        this.scheduler = scheduler;
+        
+        this.sprite = new PIXI.AnimatedSprite(smokeFrames); // Replace fireFrames with smokeFrames
+        this.sprite.animationSpeed = 0.1;
+        this.sprite.loop = true;
+        this.sprite.play();
+        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
+        this.sprite.scale.set(SCALE_FACTOR); 
+        this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
+        app.stage.addChild(this.sprite);
+        objectMap[this.y][this.x] = 400;
+    }
+
+    act() {
+        // 50% chance to disappear
+        if (Math.random() < 0.5) {
+            // Remove from object map
+            objectMap[this.y][this.x] = null;
+
+            // Destroy sprite and remove from scheduler
+            this.sprite.destroy();
+            this.scheduler.remove(this);
+        }
+    }
 }
 
 
@@ -718,8 +810,6 @@ function addBaseAndShadows() {
     }
 }
 
-
-
 function evaluateMapAndCreateWalls() {
     // Loop through each row
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -754,76 +844,75 @@ function evaluateMapAndCreateWalls() {
     }
 }
 
-
-
 /// UI functions
 
-// a function to draw a box with sprites
-function drawUIBox(message) {
-    const BOX_HEIGHT = 5;
-    const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
-    const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
-    const BORDER_VERTICAL = { x: 17, y: 7 }; 
-    const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
-    const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
-    const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
-    const BLANK_TILE = { x: 21, y: 7};
 
-    // Draw the top border of the box
-    createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
-    }
-    createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
-
-    // Draw the bottom border of the box
-    createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
-    for (let x = 1; x < MAP_WIDTH - 1; x++) {
-        createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
-    }
-    createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
-
-    // Draw the vertical borders and the message
-    for (let y = 1; y < BOX_HEIGHT - 1; y++) {
-        createSprite(0, y, BORDER_VERTICAL,uiMap, 179);
-        createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL,uiMap, 179);
-        for(let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, y, BLANK_TILE,uiMap, 0);
-        }
-        // Write the message
-        if (y === Math.floor(BOX_HEIGHT / 2)) {
-            for (let i = 0; i < message.length; i++) {
-                let spriteLocation = charToSpriteLocation(message.charAt(i));
-                createSprite(i + 1, y, spriteLocation,uiMap, message.charCodeAt(i));
-            }
-        }
-    }
-}
-// a function to pick sprite text
-function charToSpriteLocation(char) {
-    let charCode = char.charCodeAt(0);
-    let tileNumber = charCode; 
-    let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
-    let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
-    
-    if(spriteColumn >= SPRITESHEET_COLUMNS) {
-        spriteColumn = 0;
-        spriteRow++;
-    }
-
-    //console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
-    return { x: spriteColumn, y: spriteRow };
-}
 // a class for screen text
 class MessageList {
     constructor() {
         this.messages = ["Welcome to the Dungeon of Doom!"];
         this.active = true;
     }
-    
+    // a function to draw a box with sprites
+    drawUIBox(message) {
+        const BOX_HEIGHT = 5;
+        const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
+        const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
+        const BORDER_VERTICAL = { x: 17, y: 7 }; 
+        const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
+        const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
+        const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
+        const BLANK_TILE = { x: 21, y: 7};
+
+        // Draw the top border of the box
+        createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
+        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
+        }
+        createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
+
+        // Draw the bottom border of the box
+        createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
+        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+            createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
+        }
+        createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
+
+        // Draw the vertical borders and the message
+        for (let y = 1; y < BOX_HEIGHT - 1; y++) {
+            createSprite(0, y, BORDER_VERTICAL,uiMap, 179);
+            createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL,uiMap, 179);
+            for(let x = 1; x < MAP_WIDTH - 1; x++) {
+                createSprite(x, y, BLANK_TILE,uiMap, 0);
+            }
+            // Write the message
+            if (y === Math.floor(BOX_HEIGHT / 2)) {
+                for (let i = 0; i < message.length; i++) {
+                    let spriteLocation = this.charToSpriteLocation(message.charAt(i));
+                    createSprite(i + 1, y, spriteLocation,uiMap, message.charCodeAt(i));
+                }
+            }
+        }
+    }
+    // a function to pick sprite text
+    charToSpriteLocation(char) {
+        let charCode = char.charCodeAt(0);
+        let tileNumber = charCode; 
+        let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
+        let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
+        
+        if(spriteColumn >= SPRITESHEET_COLUMNS) {
+            spriteColumn = 0;
+            spriteRow++;
+        }
+
+        //console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
+        return { x: spriteColumn, y: spriteRow };
+    }
     // Adds a message to the list
     addMessage(message) {
         this.messages.push(message);
+        this.render(); // re-render whenever a new message is added
     }
     
     // Toggles the active state
@@ -839,7 +928,7 @@ class MessageList {
             const messageToShow = lastMessages.join(' ');
 
             // Call the drawUIBox function to draw the message box
-            drawUIBox(messageToShow);
+            this.drawUIBox(messageToShow);
         }
     }
 }
@@ -874,7 +963,7 @@ function setup() {
 
         let scheduler = new ROT.Scheduler.Simple();
         let engine = new ROT.Engine(scheduler);
-        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine);
+        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList);
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
@@ -887,4 +976,5 @@ function setup() {
 
         engine.start(); // start the engine
     });
+
 }
