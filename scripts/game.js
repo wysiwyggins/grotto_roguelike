@@ -6,6 +6,7 @@ let app = new PIXI.Application({
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
 });
+
 app.stage.sortableChildren = true;
 
 // Add the app view to our HTML document
@@ -27,6 +28,7 @@ let floorMap = createEmptyMap();
 let objectMap = createEmptyMap();
 let wallMap = createEmptyMap();
 let uiMap = createEmptyMap();
+
 
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
@@ -110,6 +112,8 @@ class Player {
     }
     move(direction) {
         // Store previous position
+        console.log('Player is taking turn...');
+        
         this.prevX = this.x;
         this.prevY = this.y;
     
@@ -199,14 +203,14 @@ class Player {
         this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
         this.sprite.overlay.x = this.sprite.footprint.x;
         this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
+
+
+        engine.lock(); // end the player's turn
     }
-    
-    
     
 }
 
 function createPlayerSprite(player) {
-   
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         player.footprintPosition.x * TILE_WIDTH, 
@@ -726,7 +730,6 @@ function setup() {
     dungeonGeneration();
     addFloorsAndVoid();
     evaluateMapAndCreateWalls(floorMap);
-    
     addBaseAndShadows();
 
 
@@ -743,7 +746,7 @@ function setup() {
 
     let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y);
     createPlayerSprite(player);
-    
+
     window.addEventListener('keydown', function(event) {
         switch (event.key) {
             case 'ArrowUp':
@@ -765,4 +768,11 @@ function setup() {
 
     const messageList = new MessageList();
     messageList.render();
+
+    let scheduler = new ROT.Scheduler.Simple();
+    let engine = new ROT.Engine(scheduler);
+
+    scheduler.add(player, true); // the player takes turns
+
+    engine.start(); // start the engine
 }
