@@ -98,6 +98,9 @@ class Player {
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
         });
+        // stats
+        this.blood = 100;
+        this.isBurning = false;
         
         
         // You can set the specific footprint and head tiles for each player type here.
@@ -212,7 +215,7 @@ class Player {
         }
 
         // Handle visibility and positioning of the foot shadow
-        let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 && wallMap[headTileY]?.[this.x + 1]?.value !== 131 && objectMap[headTileY]?.[this.x + 1]?.value !== 300; // check the tile to the right of the footprint
+        let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 || floorMap[this.y]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131 && objectMap[headTileY]?.[this.x + 1]?.value !== 300; // check the tile to the right of the footprint
         this.sprite.footShadow.visible = isBesideFloor;
 
         if (isBesideFloor) {
