@@ -394,7 +394,7 @@ class Fire {
             return;
         }
     
-        // 50% chance to spread the fire
+        // 30% chance to spread the fire
         if (Math.random() < 0.3) {
             let directions = [
                 [-1, 0], // left
@@ -852,10 +852,10 @@ class MessageList {
     constructor() {
         this.messages = ["Welcome to the Dungeon of Doom!"];
         this.active = true;
+        this.BOX_HEIGHT = 5;
     }
     // a function to draw a box with sprites
     drawUIBox(message) {
-        const BOX_HEIGHT = 5;
         const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
         const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
         const BORDER_VERTICAL = { x: 17, y: 7 }; 
@@ -872,21 +872,21 @@ class MessageList {
         createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
 
         // Draw the bottom border of the box
-        createSprite(0, BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
+        createSprite(0, this.BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
         for (let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
+            createSprite(x, this.BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
         }
-        createSprite(MAP_WIDTH - 1, BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
+        createSprite(MAP_WIDTH - 1, this.BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
 
         // Draw the vertical borders and the message
-        for (let y = 1; y < BOX_HEIGHT - 1; y++) {
+        for (let y = 1; y < this.BOX_HEIGHT - 1; y++) {
             createSprite(0, y, BORDER_VERTICAL,uiMap, 179);
             createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL,uiMap, 179);
             for(let x = 1; x < MAP_WIDTH - 1; x++) {
                 createSprite(x, y, BLANK_TILE,uiMap, 0);
             }
             // Write the message
-            if (y === Math.floor(BOX_HEIGHT / 2)) {
+            if (y === Math.floor(this.BOX_HEIGHT / 2)) {
                 for (let i = 0; i < message.length; i++) {
                     let spriteLocation = this.charToSpriteLocation(message.charAt(i));
                     createSprite(i + 1, y, spriteLocation,uiMap, message.charCodeAt(i));
@@ -920,15 +920,39 @@ class MessageList {
         this.active = !this.active;
     }
 
+    // Clears the message box
+    clearBox() {
+        const BLANK_TILE = { x: 21, y: 7 };
+        for(let y = 1; y < this.BOX_HEIGHT - 1; y++) {
+            for(let x = 1; x < MAP_WIDTH - 1; x++) {
+                createSprite(x, y, BLANK_TILE, uiMap, 0);
+            }
+        }
+    }
+
     // Renders the text box with the last two messages
     render() {
+        this.drawUIBox("");
         if (this.active && this.messages.length > 0) {
+            this.clearBox();  // Clear the message box before drawing the new messages
+    
             // Extract the last two messages
             const lastMessages = this.messages.slice(-2);
-            const messageToShow = lastMessages.join(' ');
-
-            // Call the drawUIBox function to draw the message box
-            this.drawUIBox(messageToShow);
+    
+            // Draw each message
+            for(let i = 0; i < lastMessages.length; i++) {
+                let message = lastMessages[i];
+                let y = 2 + i;  // the y position of the message
+                for(let j = 0; j < message.length; j++) {
+                    let spriteLocation = this.charToSpriteLocation(message.charAt(j));
+                    createSprite(j + 1, y, spriteLocation, uiMap, message.charCodeAt(j));
+                }
+            }
+    
+            // Remove the oldest message if there are more than two
+            if (this.messages.length > 2) {
+                this.messages.shift();
+            }
         }
     }
 }
