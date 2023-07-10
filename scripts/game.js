@@ -73,7 +73,8 @@ const PlayerType = Object.freeze({
     "BIRD": 4,
     "OBELISK": 5,
     "FUNGUS": 6,
-    "VEGETABLE": 7
+    "VEGETABLE": 7,
+    "SKELETON" : 8
 });
 
 class Player {
@@ -101,6 +102,7 @@ class Player {
         // stats
         this.blood = 100;
         this.isBurning = false;
+        this.burningTurns = 0;
         
         
         // You can set the specific footprint and head tiles for each player type here.
@@ -137,9 +139,13 @@ class Player {
                 this.footprintPosition = {x: 13, y: 7};
                 this.headPosition = {x: 6, y: 8};  
                 break;
+            case PlayerType.SKELETON:
+                this.footprintPosition = {x: 13, y: 7};
+                this.headPosition = {x: 6, y: 8};  
+                break;
             default:
-                this.footprintPosition = {x: 10, y: 5};
-                this.headPosition = {x: 1, y: 0};
+                this.footprintPosition = {x: 10, y: 7};
+                this.headPosition = {x: 9, y: 7};
                 break;
         }
     }
@@ -178,7 +184,7 @@ class Player {
         if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
             let floorTileValue = floorMap[newTileY][newTileX]?.value;
             let objectTileValue = objectMap[newTileY][newTileX]?.value;
-
+    
             if (floorTileValue === 157 && (!objectTileValue || objectTileValue < 300)) {
                 this.x = newTileX;
                 this.y = newTileY;
@@ -188,12 +194,14 @@ class Player {
                 if (this.attemptingFireEntry && this.fireEntryDirection === direction) {
                     this.x = newTileX;
                     this.y = newTileY;
+                    this.isBurning = true;
+                    this.burningTurns = 0;
+                    this.messageList.addMessage("You stepped into fire!");
                     this.attemptingFireEntry = false;
                     this.fireEntryDirection = null;
                 } else {
                     this.attemptingFireEntry = true;
                     this.fireEntryDirection = direction;
-                    console.log("Walk into the fire?");
                     this.messageList.addMessage("Walk into the fire?");
                 }
             } else {
@@ -201,7 +209,6 @@ class Player {
                 this.fireEntryDirection = null;
             }
         }
-
 
         //shadow stuff
         
@@ -304,9 +311,30 @@ class Player {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
     }
+    applyDamageEffects() {
+        if (this.isBurning) {
 
+            this.blood -= 20;
+            this.burningTurns++;
+            this.messageList.addMessage("You are on fire!");
+            
+            // Increase chance of burning ending after 4 turns, with a guarantee to stop after 6 turns
+            if (this.burningTurns > 3 || (this.burningTurns > 3 && Math.random() < 0.5) || this.burningTurns > 5) {
+                this.isBurning = false;
+                this.messageList.addMessage("You are no longer on fire.");
+            }
+    
+            // Check if player is dead
+            if (this.blood < 1) {
+                this.messageList.addMessage("You are dead!");
+                this.type = PlayerType.SKELETON;
+                // You could handle further gameplay mechanics related to player death here
+            }
+        }
+    }
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
+        this.applyDamageEffects();
     }
     
 }
@@ -381,6 +409,7 @@ class Fire {
         this.sprite.scale.set(SCALE_FACTOR);  // Adjust scale with SCALE_FACTOR
         this.sprite.zIndex = 2;
         app.stage.addChild(this.sprite);
+        
 
         if (!objectMap[this.y]) {
             objectMap[this.y] = [];
@@ -394,7 +423,9 @@ class Fire {
             this.sprite.destroy();
             this.scheduler.remove(this);
             objectMap[this.y][this.x] = null;
+            
             return;
+
         }
     
         // 30% chance to spread the fire
@@ -851,14 +882,18 @@ function evaluateMapAndCreateWalls() {
 
 
 // a class for screen text
-class MessageList {
-    constructor() {
-        this.messages = ["Welcome to the Dungeon of Doom!"];
-        this.active = true;
-        this.BOX_HEIGHT = 5;
+class UIBox {
+    constructor(textBuffer = [""], width = MAP_WIDTH, height = null, hidden = false) {
+        this.textBuffer = textBuffer;
+        this.width = width;
+        this.height = height || textBuffer.length;
+        this.hidden = hidden;
+        this.height = Math.min(this.height, MAP_HEIGHT);
     }
+
     // a function to draw a box with sprites
-    drawUIBox(message) {
+    drawUIBox() {
+        if (this.hidden) return; // If box is hidden, don't draw it
         const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
         const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
         const BORDER_VERTICAL = { x: 17, y: 7 }; 
@@ -867,7 +902,9 @@ class MessageList {
         const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
         const BLANK_TILE = { x: 21, y: 7};
 
-        // Draw the top border of the box
+        // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
+        if (this.height == null){this.height = Math.min(this.textBuffer.length, MAP_HEIGHT );}
+
         createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
         for (let x = 1; x < MAP_WIDTH - 1; x++) {
             createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
@@ -875,29 +912,38 @@ class MessageList {
         createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
 
         // Draw the bottom border of the box
-        createSprite(0, this.BOX_HEIGHT - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
+        createSprite(0, this.height - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
         for (let x = 1; x < MAP_WIDTH - 1; x++) {
-            createSprite(x, this.BOX_HEIGHT - 1, BORDER_HORIZONTAL,uiMap, 196);
+            createSprite(x, this.height - 1, BORDER_HORIZONTAL,uiMap, 196);
         }
-        createSprite(MAP_WIDTH - 1, this.BOX_HEIGHT - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
+        createSprite(MAP_WIDTH - 1, this.height - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
 
-        // Draw the vertical borders and the message
-        for (let y = 1; y < this.BOX_HEIGHT - 1; y++) {
-            createSprite(0, y, BORDER_VERTICAL,uiMap, 179);
-            createSprite(MAP_WIDTH - 1, y, BORDER_VERTICAL,uiMap, 179);
-            for(let x = 1; x < MAP_WIDTH - 1; x++) {
-                createSprite(x, y, BLANK_TILE,uiMap, 0);
+        for (let y = 1; y < this.height; y++) {
+            createSprite(0, y, BORDER_VERTICAL, uiMap, 179);
+            createSprite(this.width - 1, y, BORDER_VERTICAL, uiMap, 179);
+            for(let x = 1; x < this.width - 1; x++) {
+                createSprite(x, y, BLANK_TILE, uiMap, 0);
             }
             // Write the message
-            if (y === Math.floor(this.BOX_HEIGHT / 2)) {
+            let message = this.textBuffer[y - 1]; // get the message from the buffer
+            if (message) {
                 for (let i = 0; i < message.length; i++) {
                     let spriteLocation = this.charToSpriteLocation(message.charAt(i));
-                    createSprite(i + 1, y, spriteLocation,uiMap, message.charCodeAt(i));
+                    createSprite(i + 1, y, spriteLocation, uiMap, message.charCodeAt(i));
                 }
+            }
+
+            // Draw the bottom border of the box if it's the last line in the textBuffer
+            if (y === this.height - 1) {
+                createSprite(0, y + 1, BORDER_BOTTOM_LEFT, uiMap, 192);
+                for (let x = 1; x < MAP_WIDTH - 1; x++) {
+                    createSprite(x, y + 1, BORDER_HORIZONTAL, uiMap, 196);
+                }
+                createSprite(MAP_WIDTH - 1, y + 1, BORDER_BOTTOM_RIGHT, uiMap, 217);
             }
         }
     }
-    // a function to pick sprite text
+
     charToSpriteLocation(char) {
         let charCode = char.charCodeAt(0);
         let tileNumber = charCode; 
@@ -912,10 +958,11 @@ class MessageList {
         //console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
         return { x: spriteColumn, y: spriteRow };
     }
+
     // Adds a message to the list
     addMessage(message) {
-        this.messages.push(message);
-        this.render(); // re-render whenever a new message is added
+        this.textBuffer.push(message);
+        this.render();
     }
     
     // Toggles the active state
@@ -926,35 +973,41 @@ class MessageList {
     // Clears the message box
     clearBox() {
         const BLANK_TILE = { x: 21, y: 7 };
-        for(let y = 1; y < this.BOX_HEIGHT - 1; y++) {
-            for(let x = 1; x < MAP_WIDTH - 1; x++) {
+        for(let y = 1; y < this.height - 1; y++) {
+            for(let x = 1; x < this.width - 1; x++) {
                 createSprite(x, y, BLANK_TILE, uiMap, 0);
             }
         }
     }
+    toggleVisibility() {
+        this.hidden = !this.hidden;
+    }
 
-    // Renders the text box with the last two messages
+    showBox() {
+        this.hidden = false;
+        this.drawUIBox();
+    }
+
+    hideBox() {
+        this.hidden = true;
+        this.clearBox();
+    }
+
     render() {
-        this.drawUIBox("");
-        if (this.active && this.messages.length > 0) {
-            this.clearBox();  // Clear the message box before drawing the new messages
-    
-            // Extract the last two messages
-            const lastMessages = this.messages.slice(-2);
-    
-            // Draw each message
+        this.drawUIBox();
+        if (!this.hidden && this.textBuffer.length > 0) {
+            this.clearBox();
+            const lastMessages = this.textBuffer.slice(-2);
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
-                let y = 2 + i;  // the y position of the message
+                let y = 2 + i;
                 for(let j = 0; j < message.length; j++) {
                     let spriteLocation = this.charToSpriteLocation(message.charAt(j));
                     createSprite(j + 1, y, spriteLocation, uiMap, message.charCodeAt(j));
                 }
             }
-    
-            // Remove the oldest message if there are more than two
-            if (this.messages.length > 2) {
-                this.messages.shift();
+            if (this.textBuffer.length > 2) {
+                this.textBuffer.shift();
             }
         }
     }
@@ -978,8 +1031,11 @@ function setup() {
 
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
-    const messageList = new MessageList();
-    messageList.render();
+    let messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
+    //let inspector = new UIBox(["Inspecting..."], 10, 10);
+
+    // And handle them individually
+    messageList.showBox();
 
     PIXI.Loader.shared.onComplete.add(() => {
         for (let i = 0; i < 7; i++) { // assuming you have 4 frames of fire animation
