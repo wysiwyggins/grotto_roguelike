@@ -79,6 +79,7 @@ const PlayerType = Object.freeze({
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList) {
+        this.isDead = false;
         this.type = type;
         this.x = x;
         this.y = y;
@@ -140,8 +141,8 @@ class Player {
                 this.headPosition = {x: 6, y: 8};  
                 break;
             case PlayerType.SKELETON:
-                this.footprintPosition = {x: 13, y: 7};
-                this.headPosition = {x: 6, y: 8};  
+                this.footprintPosition = {x: 10, y: 7};
+                this.headPosition = {x: 9, y: 7};  
                 break;
             default:
                 this.footprintPosition = {x: 10, y: 7};
@@ -270,6 +271,7 @@ class Player {
 
     }
     handleKeydown(event) {
+        if (this.isDead) return;  
         if (this.attemptingFireEntry) {
             switch (event.key) {
                 case 'ArrowUp':
@@ -328,10 +330,31 @@ class Player {
             if (this.blood < 1) {
                 this.messageList.addMessage("You are dead!");
                 this.type = PlayerType.SKELETON;
-                // You could handle further gameplay mechanics related to player death here
+                this.isDead = true;
+                this.footprintPosition = {x: 13, y: 7};
+                this.headPosition = {x: 6, y: 8}; 
+
+    // Update the sprite
+    this.updateSprite();
             }
         }
     }
+
+    updateSprite() {
+        let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+        let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            this.footprintPosition.x * TILE_WIDTH, 
+            this.footprintPosition.y * TILE_HEIGHT, 
+            TILE_WIDTH, TILE_HEIGHT));
+        let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            this.headPosition.x * TILE_WIDTH, 
+            this.headPosition.y * TILE_HEIGHT, 
+            TILE_WIDTH, TILE_HEIGHT));
+    
+        this.sprite.footprint.texture = footprintTexture;
+        this.sprite.overlay.texture = overlayTexture;
+    };
+
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
