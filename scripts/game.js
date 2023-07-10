@@ -73,8 +73,9 @@ const PlayerType = Object.freeze({
     "BIRD": 4,
     "OBELISK": 5,
     "FUNGUS": 6,
-    "VEGETABLE": 7,
-    "SKELETON" : 8
+    "SKELETON" : 7,
+    "VEGETABLE": 8
+    
 });
 
 class Player {
@@ -133,7 +134,7 @@ class Player {
                 this.headPosition = {x: 18, y: 8}; 
                 break;
             case PlayerType.FUNGUS:
-                this.footprintPosition = {x: 6, y: 7}; 
+                this.footprintPosition = {x: 17, y: 7}; 
                 this.headPosition = {x: 9, y: 8}; 
                 break;
             case PlayerType.VEGETABLE:
@@ -145,8 +146,8 @@ class Player {
                 this.headPosition = {x: 9, y: 7};  
                 break;
             default:
-                this.footprintPosition = {x: 10, y: 7};
-                this.headPosition = {x: 9, y: 7};
+                this.footprintPosition = {x: 10, y: 5};
+                this.headPosition = {x: 1, y: 0};
                 break;
         }
     }
@@ -315,7 +316,6 @@ class Player {
     }
     applyDamageEffects() {
         if (this.isBurning) {
-
             this.blood -= 20;
             this.burningTurns++;
             this.messageList.addMessage("You are on fire!");
@@ -331,30 +331,41 @@ class Player {
                 this.messageList.addMessage("You are dead!");
                 this.type = PlayerType.SKELETON;
                 this.isDead = true;
-                this.footprintPosition = {x: 13, y: 7};
-                this.headPosition = {x: 6, y: 8}; 
-
-    // Update the sprite
-    this.updateSprite();
+    
+                // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
+                this.updateSprite();
             }
         }
     }
-
     updateSprite() {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+        
+        // Use player type to decide on sprites.
+        let footprintPosition, headPosition;
+        switch(this.type) {
+            // Add your other cases here.
+            case PlayerType.SKELETON:
+                footprintPosition = {x: 10, y: 7};
+                headPosition = {x: 9, y: 7}; 
+                break;
+            default:
+                footprintPosition = {x: 10, y: 5};
+                headPosition = {x: 1, y: 0};
+                break;
+        }
+    
         let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            this.footprintPosition.x * TILE_WIDTH, 
-            this.footprintPosition.y * TILE_HEIGHT, 
+            footprintPosition.x * TILE_WIDTH, 
+            footprintPosition.y * TILE_HEIGHT, 
             TILE_WIDTH, TILE_HEIGHT));
         let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            this.headPosition.x * TILE_WIDTH, 
-            this.headPosition.y * TILE_HEIGHT, 
+            headPosition.x * TILE_WIDTH, 
+            headPosition.y * TILE_HEIGHT, 
             TILE_WIDTH, TILE_HEIGHT));
     
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
     };
-
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
