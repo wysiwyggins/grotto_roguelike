@@ -7,6 +7,7 @@ let app = new PIXI.Application({
     autoDensity: true
 });
 
+
 app.stage.sortableChildren = true;
 
 // Add the app view to our HTML document
@@ -29,6 +30,11 @@ let objectMap = createEmptyMap();
 let wallMap = createEmptyMap();
 let uiMap = createEmptyMap();
 
+let engine;
+let gameOver = false;
+var players = [];
+let activeEntities = [];
+var messageList;
 
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
@@ -77,6 +83,8 @@ const PlayerType = Object.freeze({
     "VEGETABLE": 8
     
 });
+
+
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList) {
@@ -151,6 +159,14 @@ class Player {
                 break;
         }
     }
+    static checkLivingPlayers() {
+            for (let player of players) {  // Assuming `players` is an array containing all player instances
+                if (!player.isDead) {
+                    return true;
+                }
+            }
+            return false;
+        }
     move(direction) {
         // Store previous position
         console.log('Player is taking turn...');
@@ -369,11 +385,13 @@ class Player {
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
+        checkGameState();
     }
     
 }
 
 function createPlayerSprite(player) {
+    players.push(player);
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         player.footprintPosition.x * TILE_WIDTH, 
@@ -430,6 +448,7 @@ function createPlayerSprite(player) {
 
 class Fire {
     constructor(x, y, scheduler) {
+        activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
@@ -457,7 +476,10 @@ class Fire {
             this.sprite.destroy();
             this.scheduler.remove(this);
             objectMap[this.y][this.x] = null;
-            
+            let index = activeEntities.indexOf(this);
+            if (index !== -1) {
+                activeEntities.splice(index, 1);
+            }
             return;
 
         }
@@ -512,7 +534,8 @@ class Fire {
 
 class Smoke {
     constructor(x, y, scheduler) {
-        console.log("Creating smoke")
+        //console.log("Creating smoke")
+        activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
@@ -531,17 +554,52 @@ class Smoke {
     act() {
         // 50% chance to disappear
         if (Math.random() < 0.5) {
+            
             // Remove from object map
             objectMap[this.y][this.x] = null;
 
             // Destroy sprite and remove from scheduler
             this.sprite.destroy();
             this.scheduler.remove(this);
+            let index = activeEntities.indexOf(this);
+            if (index !== -1) {
+                activeEntities.splice(index, 1);
+            }
+
         }
+        checkGameState();
     }
 }
 
 
+// This function advances the turn after a delay of 1 second
+function delayedAdvanceTurn() {
+    setTimeout(function() {
+        engine.unlock();
+        
+    }, 1000);
+}
+
+// This function checks the state of the game and takes appropriate action
+function checkGameState() {
+    var alivePlayers = players.filter(function(player) {
+        return !player.isDead;
+    });
+    if (alivePlayers.length === 0) {
+        let isSomeoneCanAct = activeEntities.some(entity => typeof entity.act === 'function');
+        // If no one can act, and game over flag is not set yet, show the message and stop the game
+        if (!isSomeoneCanAct && !gameOver) {
+            messageList.addMessage("The dungeon is still");
+            engine.lock();
+            gameOver = true; // Set game over flag to true
+        }
+        // Otherwise, advance the turn after a delay of 1 second and show "Time passes..." message
+        else if (isSomeoneCanAct) {
+            messageList.addMessage("Time passes...");
+            delayedAdvanceTurn();
+        }
+    }
+}
 
 function createSprite(x, y, position, layer, value = null) {
     if (!layer[y]) {
@@ -1065,7 +1123,7 @@ function setup() {
 
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
-    let messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
+    messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     //let inspector = new UIBox(["Inspecting..."], 10, 10);
 
     // And handle them individually
@@ -1079,7 +1137,7 @@ function setup() {
         }
 
         let scheduler = new ROT.Scheduler.Simple();
-        let engine = new ROT.Engine(scheduler);
+        engine = new ROT.Engine(scheduler);
         let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList);
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
