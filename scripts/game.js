@@ -450,12 +450,23 @@ const MonsterType = Object.freeze({
     "BASILISK": 0,
 });
 
-class Attack {
-    constructor(type, lowDamage, highDamage, success) {
-        this.type = type;
-        this.damage = { low: lowDamage, high: highDamage };
-        this.success = success;
-    }
+
+const Attacks = {
+    FIREBREATH: function(monster, target) {
+        target.isBurning = true;
+        let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
+        while (fireTilesCount-- > 0) {
+            let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
+            let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
+            let newX = target.x + dx;
+            let newY = target.y + dy;
+            if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
+                new Fire(newX, newY, monster.scheduler);
+            }
+        }
+        monster.messageList.push(`The ${monster.name} breathes flames!`);
+    },
+    // Add other attacks here
 }
 
 class Monster {
@@ -472,10 +483,10 @@ class Monster {
         this.headTile;
         this.sprite = {}; 
         this.fireproof;
-        this.headShadowTile = {x: 14, y: 9};
-        this.footShadowTile = {x: 8, y: 6};
+        this.secondShadowTile = {x: 14, y: 9};
+        this.firstShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
-        this.footShadowTile.zIndex = 1.5;
+        this.firstShadowTile.zIndex = 1.5;
         this.scheduler = scheduler;
         this.engine = engine;
         this.messageList = messageList;
@@ -487,16 +498,17 @@ class Monster {
         this.description = ""; // To be set by a monster-specific code.
 
         // An array of attacks a monster can perform. Can be set by a monster-specific code.
-        //this.attacks = []; 
+        this.attacks = []; 
 
         switch(type) {
             case MonsterType.BASILISK:
                 this.upright = true;
-                this.footprintPosition = {x: 10, y: 7};
-                this.headPosition = {x: 21, y: 6};
+                this.firstTilePosition = {x: 10, y: 7};
+                this.secondTilePosition = {x: 21, y: 6};
                 this.attacks = ["FIREBREATH"];
                 this.target = null;
-                 this.getTargetsInRange = function() {
+                this.range = 5;
+                this.getTargetsInRange = function() {
                     if (players.length > 0) {
                         for(let obj of players) { 
                             if(obj.isDead === false) {
@@ -504,7 +516,7 @@ class Monster {
                                 let dy = this.y - obj.y;
                                 let distance = Math.sqrt(dx * dx + dy * dy);
                 
-                                if(distance <= this.fireAttack.range) { // within range of Basilisk's attack
+                                if(distance <= this.range) { // within range of Basilisk's attack
                                     this.target = obj;
                                     break;
                                 }
@@ -514,65 +526,28 @@ class Monster {
                         this.target = null;
                     }
                 } 
-                
+                this.canSeeTarget = function(target) {
+                    let line = new ROT.Line(this.x, this.y, target.x, target.y);
+                    let seen = true;
+                    line.draw((x, y) => {
+                        // If there's a wall or any other blocking entity, the monster can't see the target
+                        if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
+                            seen = false;
+                        }
+                    });
+                    return seen;
+                }
                 this.act = function() {
-                    if(!this.target) { // Only get targets when there is no current target
+                    if(!this.target) {
                         this.getTargetsInRange();
                     }
                     if(this.target) {
-                        // Use fire attack
-                        //this.fireAttack();
-                        this.target = null; // Reset target after attack
-                    }
-                    //console.log("The basilisk sleeps...");
-                }
-                this.fireAttack = function() {
-                    // Generate 3 to 5 fire tiles on walkable floor tiles around the player
-                    let fireCount = Math.floor(Math.random() * 3) + 3;
-                    let fires = [];
-                    let range = 5;
-                    if (this.target != null){
-                        for(let i = 0; i < fireCount; i++) {
-                            if (Math.random() < 0.3) {
-                                let directions = [
-                                    [-1, 0], // left
-                                    [1, 0], // right
-                                    [0, -1], // up
-                                    [0, 1] // down
-                                ];
-                                for (let direction of directions) {
-                                    let newX = this.target.x + direction[0];
-                                    let newY = this.target.y + direction[1];
-                                    // Check if the new spot is valid and not already on fire
-                                    if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
-                                        floorMap[newY][newX].value === 157 && 
-                                        (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
-                                    
-                                        let fire = new Fire(newX, newY, this.scheduler);
-                                                        
-                                        if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
-                                            // Set the transformation origin to the center of the sprite
-                                            fire.sprite.anchor.set(0.5, 0.5);
-                                    
-                                            // Flip horizontally
-                                            fire.sprite.scale.x *= -1;
-                                    
-                                            // Adjust sprite's position due to anchor change
-                                            fire.sprite.x += TILE_WIDTH * SCALE_FACTOR / 2;
-                                            fire.sprite.y += TILE_HEIGHT * SCALE_FACTOR / 2;
-                                        }
-                
-                                        fires.push(fire);
-                                        break;
-                                    }
-                                }
+                        if (this.canSeeTarget(this.target)) {
+                            for (let attackKey of this.attacks) {
+                                Attacks[attackKey](this, this.target);
                             }
                         }
-                    }
-                
-                    // Add all fires to the scheduler at once
-                    for(let fire of fires) {
-                        this.scheduler.add(fire, true);
+                        this.target = null;
                     }
                 }
                 break;
@@ -1343,9 +1318,9 @@ function setup() {
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
-        //let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList);
-        //createMonsterSprite(basilisk);
-        //scheduler.add(basilisk, true);
+        let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList);
+        createMonsterSprite(basilisk);
+        scheduler.add(basilisk, true);
 
         //add some fire
         for (let i = 0; i < 3; i++) {
