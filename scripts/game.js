@@ -150,7 +150,7 @@ class Player {
                 this.headPosition = {x: 6, y: 8};  
                 break;
             case PlayerType.SKELETON:
-                this.footprintPosition = {x: 10, y: 7};
+                this.footprintPosition = {x: 8, y: 7};
                 this.headPosition = {x: 9, y: 7};  
                 break;
             default:
@@ -361,7 +361,7 @@ class Player {
         switch(this.type) {
             // Add your other cases here.
             case PlayerType.SKELETON:
-                footprintPosition = {x: 10, y: 7};
+                footprintPosition = {x: 8, y: 7};
                 headPosition = {x: 9, y: 7}; 
                 break;
             default:
@@ -444,6 +444,206 @@ function createPlayerSprite(player) {
     
     player.sprite.shadow= spriteShadow;
 
+}
+
+const MonsterType = Object.freeze({
+    "BASILISK": 0,
+});
+
+class Attack {
+    constructor(type, lowDamage, highDamage, success) {
+        this.type = type;
+        this.damage = { low: lowDamage, high: highDamage };
+        this.success = success;
+    }
+}
+
+class Monster {
+    constructor(type, x, y, scheduler, engine, messageList) {
+        console.log("ROAR");
+        this.isDead = false;
+        this.upright = true;
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.prevX = null;
+        this.prevY = null;
+        this.footprintTile;
+        this.headTile;
+        this.sprite = {}; 
+        this.fireproof;
+        this.headShadowTile = {x: 14, y: 9};
+        this.footShadowTile = {x: 8, y: 6};
+        this.sprite.shadow = null;
+        this.footShadowTile.zIndex = 1.5;
+        this.scheduler = scheduler;
+        this.engine = engine;
+        this.messageList = messageList;
+        this.blood = 100;
+        this.isBurning = false;
+        this.burningTurns = 0;
+
+        this.name = ""; // To be set by a monster-specific code.
+        this.description = ""; // To be set by a monster-specific code.
+
+        // An array of attacks a monster can perform. Can be set by a monster-specific code.
+        //this.attacks = []; 
+
+        switch(type) {
+            case MonsterType.BASILISK:
+                this.upright = true;
+                this.footprintPosition = {x: 10, y: 7};
+                this.headPosition = {x: 21, y: 6};
+                this.attacks = ["FIREBREATH"];
+                this.target = null;
+                 this.getTargetsInRange = function() {
+                    if (players.length > 0) {
+                        for(let obj of players) { 
+                            if(obj.isDead === false) {
+                                let dx = this.x - obj.x;
+                                let dy = this.y - obj.y;
+                                let distance = Math.sqrt(dx * dx + dy * dy);
+                
+                                if(distance <= this.fireAttack.range) { // within range of Basilisk's attack
+                                    this.target = obj;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        this.target = null;
+                    }
+                } 
+                
+                this.act = function() {
+                    if(!this.target) { // Only get targets when there is no current target
+                        this.getTargetsInRange();
+                    }
+                    if(this.target) {
+                        // Use fire attack
+                        //this.fireAttack();
+                        this.target = null; // Reset target after attack
+                    }
+                    //console.log("The basilisk sleeps...");
+                }
+                this.fireAttack = function() {
+                    // Generate 3 to 5 fire tiles on walkable floor tiles around the player
+                    let fireCount = Math.floor(Math.random() * 3) + 3;
+                    let fires = [];
+                    let range = 5;
+                    if (this.target != null){
+                        for(let i = 0; i < fireCount; i++) {
+                            if (Math.random() < 0.3) {
+                                let directions = [
+                                    [-1, 0], // left
+                                    [1, 0], // right
+                                    [0, -1], // up
+                                    [0, 1] // down
+                                ];
+                                for (let direction of directions) {
+                                    let newX = this.target.x + direction[0];
+                                    let newY = this.target.y + direction[1];
+                                    // Check if the new spot is valid and not already on fire
+                                    if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
+                                        floorMap[newY][newX].value === 157 && 
+                                        (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
+                                    
+                                        let fire = new Fire(newX, newY, this.scheduler);
+                                                        
+                                        if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
+                                            // Set the transformation origin to the center of the sprite
+                                            fire.sprite.anchor.set(0.5, 0.5);
+                                    
+                                            // Flip horizontally
+                                            fire.sprite.scale.x *= -1;
+                                    
+                                            // Adjust sprite's position due to anchor change
+                                            fire.sprite.x += TILE_WIDTH * SCALE_FACTOR / 2;
+                                            fire.sprite.y += TILE_HEIGHT * SCALE_FACTOR / 2;
+                                        }
+                
+                                        fires.push(fire);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                
+                    // Add all fires to the scheduler at once
+                    for(let fire of fires) {
+                        this.scheduler.add(fire, true);
+                    }
+                }
+                break;
+            default:
+                this.upright = true;
+                this.footprintPosition = {x: 10, y: 5};
+                this.headPosition = {x: 1, y: 0};
+                break;
+        }
+        
+    }
+    
+}
+
+function createMonsterSprite(monster) {
+    activeEntities.push(this);
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let firstTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.firstTilePosition.x * TILE_WIDTH, 
+        monster.firstTilePosition.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteFirstTile = new PIXI.Sprite(firstTileTexture);
+    spriteFirstTile.scale.set(SCALE_FACTOR);
+    spriteFirstTile.zIndex = 2;
+
+    let secondTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.secondTilePosition.x * TILE_WIDTH, 
+        monster.secondTilePosition.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteSecondTile = new PIXI.Sprite(secondTileTexture);
+    spriteSecondTile.scale.set(SCALE_FACTOR);
+    spriteSecondTile.zIndex = 1;
+
+    spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
+    spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
+
+    if (monster.upright) {
+        spriteSecondTile.x = spriteFirstTile.x;
+        spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+    } else {
+        spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
+        spriteSecondTile.y = spriteFirstTile.y;
+    }
+
+    app.stage.addChild(spriteFirstTile);
+    app.stage.addChild(spriteSecondTile);
+
+    monster.sprite = { firstTile: spriteFirstTile, secondTile: spriteSecondTile };
+    let firstShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.firstShadowTile.x * TILE_WIDTH, 
+        monster.firstShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteFirstShadow = new PIXI.Sprite(firstShadowTexture);
+    spriteFirstShadow.scale.set(SCALE_FACTOR);
+    spriteFirstShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
+    spriteFirstShadow.visible = false;
+
+    let secondShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.secondShadowTile.x * TILE_WIDTH, 
+        monster.secondShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteSecondShadow = new PIXI.Sprite(secondShadowTexture);
+    spriteSecondShadow.scale.set(SCALE_FACTOR);
+    spriteSecondShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the wall
+    spriteSecondShadow.visible = false;
+
+    app.stage.addChild(spriteFirstShadow);
+    app.stage.addChild(spriteSecondShadow);
+
+    monster.sprite.firstShadow = spriteFirstShadow;
+    monster.sprite.secondShadow = spriteSecondShadow;
 }
 
 class Fire {
@@ -1123,6 +1323,7 @@ function setup() {
 
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
+    let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     //let inspector = new UIBox(["Inspecting..."], 10, 10);
 
@@ -1141,6 +1342,10 @@ function setup() {
         let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList);
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
+
+        //let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList);
+        //createMonsterSprite(basilisk);
+        //scheduler.add(basilisk, true);
 
         //add some fire
         for (let i = 0; i < 3; i++) {
