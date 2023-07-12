@@ -464,7 +464,7 @@ const Attacks = {
                 new Fire(newX, newY, monster.scheduler);
             }
         }
-        monster.messageList.push(`The ${monster.name} breathes flames!`);
+        messageList.addMessage("The {0} breathes flames!", [monster.name]);
     },
     // Add other attacks here
 }
@@ -527,22 +527,26 @@ class Monster {
                     }
                 } 
                 this.canSeeTarget = function(target) {
-                    let line = new ROT.Line(this.x, this.y, target.x, target.y);
+                    let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
                     let seen = true;
-                    line.draw((x, y) => {
+                    for(let point of lineToTarget) {
+                        let x = point.x;
+                        let y = point.y;
                         // If there's a wall or any other blocking entity, the monster can't see the target
                         if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
                             seen = false;
                         }
-                    });
+                    }
                     return seen;
                 }
                 this.act = function() {
+                    console.log("Basilisk's turn");
                     if(!this.target) {
                         this.getTargetsInRange();
                     }
                     if(this.target) {
                         if (this.canSeeTarget(this.target)) {
+                            console.log("The Basilisk sees something!");
                             for (let attackKey of this.attacks) {
                                 Attacks[attackKey](this, this.target);
                             }
@@ -1082,6 +1086,31 @@ function isLowerRightCornerTile(map, x, y, tileValue) {
     return false;
 }
 
+function diagonal_distance(p0, p1) {
+    return Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y));
+}
+
+function round_point(p) {
+    return { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
+function lerp_point(p0, p1, t) {
+    return {
+        x: p0.x * (1 - t) + p1.x * t,
+        y: p0.y * (1 - t) + p1.y * t
+    };
+}
+
+function line(p0, p1) {
+    let points = [];
+    let N = diagonal_distance(p0, p1);
+    for (let step = 0; step <= N; step++) {
+        let t = N === 0? 0.0 : step / N;
+        points.push(round_point(lerp_point(p0, p1, t)));
+    }
+    return points;
+}
+
 function addBaseAndShadows() {
     console.log("adding shadows");
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -1227,7 +1256,11 @@ class UIBox {
     }
 
     // Adds a message to the list
-    addMessage(message) {
+    addMessage(template, parameters = []) {
+        let message = template;
+        for(let i = 0; i < parameters.length; i++) {
+            message = message.replace(`{${i}}`, parameters[i]);
+        }
         this.textBuffer.push(message);
         this.render();
     }
