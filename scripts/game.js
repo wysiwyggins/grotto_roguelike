@@ -471,6 +471,7 @@ const Attacks = {
 
 class Monster {
     constructor(type, x, y, scheduler, engine, messageList) {
+        this.name = null;
         console.log("ROAR");
         this.isDead = false;
         this.upright = true;
@@ -587,6 +588,7 @@ class Monster {
                         for(let i = 0; i < this.speed; i++) {
                             //this.moveRandomly();
                             console.log("I'd move if I felt like it.")
+                            
                         }
                         this.turnsWaited = 0;
                     }
@@ -596,6 +598,7 @@ class Monster {
                 }
                 break;
             default:
+                this.name = monster;
                 this.upright = true;
                 this.footprintPosition = {x: 10, y: 5};
                 this.headPosition = {x: 1, y: 0};
