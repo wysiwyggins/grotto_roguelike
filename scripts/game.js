@@ -493,6 +493,8 @@ class Monster {
         this.blood = 100;
         this.isBurning = false;
         this.burningTurns = 0;
+        this.speed = 1;
+        this.actFrequency = 1;
 
         this.name = ""; // To be set by a monster-specific code.
         this.description = ""; // To be set by a monster-specific code.
@@ -508,6 +510,9 @@ class Monster {
                 this.attacks = ["FIREBREATH"];
                 this.target = null;
                 this.range = 5;
+                this.speed = 1; // Number of tiles to move in a turn
+                this.actFrequency = 2; // Number of turns to wait between actions
+                this.turnsWaited = 0; // Number of turns waited since last action
                 this.getTargetsInRange = function() {
                     if (players.length > 0) {
                         for(let obj of players) { 
@@ -539,6 +544,31 @@ class Monster {
                     }
                     return seen;
                 }
+                this.getAdjacentTiles = function() {
+                    let adjacentTiles = [];
+                    for(let dx = -1; dx <= 1; dx++) {
+                        for(let dy = -1; dy <= 1; dy++) {
+                            if(dx === 0 && dy === 0) continue;
+                            let newX = this.x + dx;
+                            let newY = this.y + dy;
+                            if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
+                                adjacentTiles.push({x: newX, y: newY});
+                            }
+                        }
+                    }
+                    return adjacentTiles;
+                };
+                this.moveRandomly = function() {
+                    let adjacentTiles = this.getAdjacentTiles();
+                    if(adjacentTiles.length > 0) {
+                        let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
+                        this.x = randomTile.x;
+                        this.y = randomTile.y;
+                        
+                        // Update sprite after movement
+                        this.updateSprite();
+                    }
+                };
                 this.act = function() {
                     console.log("Basilisk's turn");
                     if(!this.target) {
@@ -552,6 +582,15 @@ class Monster {
                             }
                         }
                         this.target = null;
+                    }  else if(this.turnsWaited >= this.actFrequency) {
+                        for(let i = 0; i < this.speed; i++) {
+                            //this.moveRandomly();
+                            console.log("I'd move if I felt like it.")
+                        }
+                        this.turnsWaited = 0;
+                    }
+                    else {
+                        this.turnsWaited++;
                     }
                 }
                 break;
@@ -563,7 +602,6 @@ class Monster {
         }
         
     }
-    
 }
 
 function createMonsterSprite(monster) {
@@ -623,6 +661,7 @@ function createMonsterSprite(monster) {
 
     monster.sprite.firstShadow = spriteFirstShadow;
     monster.sprite.secondShadow = spriteSecondShadow;
+    
 }
 
 class Fire {
