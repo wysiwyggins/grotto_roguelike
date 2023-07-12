@@ -504,6 +504,7 @@ class Monster {
 
         switch(type) {
             case MonsterType.BASILISK:
+                this.name = "Basilisk";
                 this.upright = true;
                 this.firstTilePosition = {x: 10, y: 7};
                 this.secondTilePosition = {x: 21, y: 6};
