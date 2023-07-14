@@ -448,6 +448,7 @@ function createPlayerSprite(player) {
 
 const MonsterType = Object.freeze({
     "BASILISK": 0,
+    "CHIMERA": 1,
 });
 
 
@@ -500,6 +501,10 @@ class Monster {
 
         // An array of attacks a monster can perform. Can be set by a monster-specific code.
         this.attacks = []; 
+        this.spriteFlip = {
+            firstTile: {x: false, y: false},
+            secondTile: {x: false, y: false}
+        };
         
         switch(type) {
             case MonsterType.BASILISK:
@@ -593,6 +598,29 @@ class Monster {
                     }
                 }
                 break;
+            case MonsterType.CHIMERA:
+                    this.name = "Chimera";
+                    this.upright = Math.random() > 0.5;
+                    this.firstTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    this.secondTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    
+                    this.spriteFlip = {
+                        firstTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }, 
+                        secondTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }
+                    };
+                    break;
             default:
                 this.name = monster;
                 this.upright = true;
@@ -648,7 +676,22 @@ function createMonsterSprite(monster) {
 
     spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
     spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
-
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+        spriteFirstTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+        spriteFirstTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+        spriteSecondTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+        spriteSecondTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
     if (monster.upright) {
         spriteSecondTile.x = spriteFirstTile.x;
         spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
@@ -656,7 +699,18 @@ function createMonsterSprite(monster) {
         spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
         spriteSecondTile.y = spriteFirstTile.y;
     }
-
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+    }
     app.stage.addChild(spriteFirstTile);
     app.stage.addChild(spriteSecondTile);
 
@@ -1394,6 +1448,8 @@ function setup() {
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+
+    let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     //let inspector = new UIBox(["Inspecting..."], 10, 10);
 
@@ -1416,6 +1472,10 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
+
+        /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
+        createMonsterSprite(chimera);
+        scheduler.add(chimera, true); */
 
         //add some fire
         for (let i = 0; i < 3; i++) {
