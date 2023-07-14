@@ -349,11 +349,11 @@ class Player {
                 this.isDead = true;
     
                 // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
-                this.updateSprite();
+                this.skeletonize();
             }
         }
     }
-    updateSprite() {
+    skeletonize() {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         
         // Use player type to decide on sprites.
@@ -480,8 +480,6 @@ class Monster {
         this.y = y;
         this.prevX = null;
         this.prevY = null;
-        this.footprintTile;
-        this.headTile;
         this.sprite = {}; 
         this.fireproof;
         this.secondShadowTile = {x: 14, y: 9};
@@ -502,7 +500,7 @@ class Monster {
 
         // An array of attacks a monster can perform. Can be set by a monster-specific code.
         this.attacks = []; 
-
+        
         switch(type) {
             case MonsterType.BASILISK:
                 this.name = "Basilisk";
@@ -566,9 +564,7 @@ class Monster {
                         let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
                         this.x = randomTile.x;
                         this.y = randomTile.y;
-                        
-                        // Update sprite after movement
-                        this.updateSprite();
+                        this.updateSpritePosition();
                     }
                 };
                 this.act = function() {
@@ -586,8 +582,8 @@ class Monster {
                         this.target = null;
                     }  else if(this.turnsWaited >= this.actFrequency) {
                         for(let i = 0; i < this.speed; i++) {
-                            //this.moveRandomly();
-                            console.log("I'd move if I felt like it.")
+                            this.moveRandomly();
+                            //console.log("I'd move if I felt like it.")
                             
                         }
                         this.turnsWaited = 0;
@@ -604,6 +600,29 @@ class Monster {
                 this.headPosition = {x: 1, y: 0};
                 break;
         }
+        this.updateSpritePosition = function() {
+            if (this.sprite.firstTile && this.sprite.secondTile) {
+                this.sprite.firstTile.x = this.x * TILE_WIDTH * SCALE_FACTOR;
+                this.sprite.firstTile.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        
+                if (this.upright) {
+                    this.sprite.secondTile.x = this.sprite.firstTile.x;
+                    this.sprite.secondTile.y = this.sprite.firstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+                } else {
+                    this.sprite.secondTile.x = this.sprite.firstTile.x + TILE_WIDTH * SCALE_FACTOR;
+                    this.sprite.secondTile.y = this.sprite.firstTile.y;
+                }
+        
+                if(this.sprite.firstShadow && this.sprite.secondShadow){
+                    this.sprite.firstShadow.x = this.sprite.firstTile.x;
+                    this.sprite.firstShadow.y = this.sprite.firstTile.y;
+        
+                    this.sprite.secondShadow.x = this.sprite.secondTile.x;
+                    this.sprite.secondShadow.y = this.sprite.secondTile.y;
+                }
+            }
+        }
+        
         
     }
 }
