@@ -456,13 +456,14 @@ const Attacks = {
     FIREBREATH: function(monster, target) {
         target.isBurning = true;
         let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
+        new Fire(target.x, target.y, monster.scheduler, '0xFF0000');
         while (fireTilesCount-- > 0) {
             let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let newX = target.x + dx;
             let newY = target.y + dy;
             if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                new Fire(newX, newY, monster.scheduler);
+                new Fire(newX, newY, monster.scheduler, '0xFF0000');
             }
         }
         messageList.addMessage("The {0} breathes flames!", [monster.name]);
@@ -742,13 +743,13 @@ function createMonsterSprite(monster) {
 }
 
 class Fire {
-    constructor(x, y, scheduler) {
+    constructor(x, y, scheduler, color='0xFFA500') {
         activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
-
+        this.color = color;
         this.sprite = new PIXI.AnimatedSprite(fireFrames);
         this.sprite.animationSpeed = 0.1;
         this.sprite.loop = true;
@@ -756,9 +757,10 @@ class Fire {
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);  // Adjust position with SCALE_FACTOR
         this.sprite.scale.set(SCALE_FACTOR);  // Adjust scale with SCALE_FACTOR
         this.sprite.zIndex = 2;
+        this.sprite.tint = this.color;  // apply the tint
+        this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
         app.stage.addChild(this.sprite);
         
-
         if (!objectMap[this.y]) {
             objectMap[this.y] = [];
         }
@@ -795,7 +797,7 @@ class Fire {
                     floorMap[newY][newX].value === 157 && 
                     (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
                 
-                    let fire = new Fire(newX, newY, this.scheduler);
+                    let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
                                     
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
                         // Set the transformation origin to the center of the sprite
@@ -1480,7 +1482,7 @@ function setup() {
         //add some fire
         for (let i = 0; i < 3; i++) {
             let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-            let fire = new Fire(randomTile.x, randomTile.y, scheduler);
+            let fire = new Fire(randomTile.x, randomTile.y, scheduler, '0xFFCC33');
             scheduler.add(fire, true); // the fire takes turns
         }
 
