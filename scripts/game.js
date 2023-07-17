@@ -744,8 +744,8 @@ function createMonsterSprite(monster) {
 
 function generateColorVariation(color, variation) {
     let baseColor = parseInt(color.slice(2), 16); // Convert to base 16 integer
-    let maxColor = 0xFFFFFF;
-    let minColor = 0;
+    let maxColor = 0xFFAA33;
+    let minColor = 0x333333;
 
     // Compute the color variations
     let lighterColor = Math.min(baseColor + variation, maxColor);
