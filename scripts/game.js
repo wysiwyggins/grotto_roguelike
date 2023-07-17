@@ -742,6 +742,25 @@ function createMonsterSprite(monster) {
     
 }
 
+function generateColorVariation(color, variation) {
+    let baseColor = parseInt(color.slice(2), 16); // Convert to base 16 integer
+    let maxColor = 0xFFFFFF;
+    let minColor = 0;
+
+    // Compute the color variations
+    let lighterColor = Math.min(baseColor + variation, maxColor);
+    let darkerColor = Math.max(baseColor - variation, minColor);
+
+    // Convert back to hexadecimal color strings
+    lighterColor = lighterColor.toString(16).padStart(6, '0');
+    darkerColor = darkerColor.toString(16).padStart(6, '0');
+
+    return {
+        lighter: '0x' + lighterColor,
+        darker: '0x' + darkerColor
+    };
+}
+
 class Fire {
     constructor(x, y, scheduler, color='0xFFA500') {
         activeEntities.push(this);
@@ -765,9 +784,23 @@ class Fire {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
+
+        let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
+
+        this.tween = new createjs.Tween.get(this.sprite)
+            .to({ tint: colorVariation.lighter }, 20) 
+            .wait(20)
+            .to({ tint: color }, 100)
+            .wait(100)
+            .to({ tint: colorVariation.darker }, 10)
+            .wait(10)
+            .call(() => {
+                this.tween.gotoAndPlay(0); // Restart the animation from the beginning
+            });
     }
 
     act() {
+        //createjs.Tween.tick();
         // Decrease turns left, if it reaches 0, stop spreading and destroy the sprite
         if (--this.turnsLeft <= 0) {
             this.sprite.destroy();
@@ -816,7 +849,7 @@ class Fire {
                 }
             }
         }
-        if (Math.random() < 0.5) {
+        if (Math.random() < 0.7) {
             let newY = this.y - 1; // the tile above the current one
             if (newY >= 0 && floorMap[newY][this.x].value !== 177 && objectMap[newY][this.x] === null) {
                 let smoke = new Smoke(this.x, newY, this.scheduler);
