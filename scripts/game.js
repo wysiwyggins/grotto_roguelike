@@ -473,6 +473,7 @@ function createPlayerSprite(player) {
 
 const MonsterType = Object.freeze({
     "BASILISK": 0,
+    "CHIMERA": 1,
 });
 
 
@@ -480,13 +481,14 @@ const Attacks = {
     FIREBREATH: function(monster, target) {
         target.isBurning = true;
         let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
+        new Fire(target.x, target.y, monster.scheduler, '0xFF0000');
         while (fireTilesCount-- > 0) {
             let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let newX = target.x + dx;
             let newY = target.y + dy;
             if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                new Fire(newX, newY, monster.scheduler);
+                new Fire(newX, newY, monster.scheduler, '0xFF0000');
             }
         }
         messageList.addMessage("The {0} breathes flames!", [monster.name]);
@@ -525,6 +527,10 @@ class Monster {
 
         // An array of attacks a monster can perform. Can be set by a monster-specific code.
         this.attacks = []; 
+        this.spriteFlip = {
+            firstTile: {x: false, y: false},
+            secondTile: {x: false, y: false}
+        };
         
         switch(type) {
             case MonsterType.BASILISK:
@@ -618,6 +624,29 @@ class Monster {
                     }
                 }
                 break;
+            case MonsterType.CHIMERA:
+                    this.name = "Chimera";
+                    this.upright = Math.random() > 0.5;
+                    this.firstTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    this.secondTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    
+                    this.spriteFlip = {
+                        firstTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }, 
+                        secondTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }
+                    };
+                    break;
             default:
                 this.name = monster;
                 this.upright = true;
@@ -673,7 +702,22 @@ function createMonsterSprite(monster) {
 
     spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
     spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
-
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+        spriteFirstTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+        spriteFirstTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+        spriteSecondTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+        spriteSecondTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
     if (monster.upright) {
         spriteSecondTile.x = spriteFirstTile.x;
         spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
@@ -681,7 +725,18 @@ function createMonsterSprite(monster) {
         spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
         spriteSecondTile.y = spriteFirstTile.y;
     }
-
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+    }
     app.stage.addChild(spriteFirstTile);
     app.stage.addChild(spriteSecondTile);
 
@@ -712,14 +767,33 @@ function createMonsterSprite(monster) {
     
 }
 
+function generateColorVariation(color, variation) {
+    let baseColor = parseInt(color.slice(2), 16); // Convert to base 16 integer
+    let maxColor = 0xFFAA33;
+    let minColor = 0x333333;
+
+    // Compute the color variations
+    let lighterColor = Math.min(baseColor + variation, maxColor);
+    let darkerColor = Math.max(baseColor - variation, minColor);
+
+    // Convert back to hexadecimal color strings
+    lighterColor = lighterColor.toString(16).padStart(6, '0');
+    darkerColor = darkerColor.toString(16).padStart(6, '0');
+
+    return {
+        lighter: '0x' + lighterColor,
+        darker: '0x' + darkerColor
+    };
+}
+
 class Fire {
-    constructor(x, y, scheduler) {
+    constructor(x, y, scheduler, color='0xFFA500') {
         activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
-
+        this.color = color;
         this.sprite = new PIXI.AnimatedSprite(fireFrames);
         this.sprite.animationSpeed = 0.1;
         this.sprite.loop = true;
@@ -727,16 +801,31 @@ class Fire {
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);  // Adjust position with SCALE_FACTOR
         this.sprite.scale.set(SCALE_FACTOR);  // Adjust scale with SCALE_FACTOR
         this.sprite.zIndex = 2;
+        this.sprite.tint = this.color;  // apply the tint
+        this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
         app.stage.addChild(this.sprite);
         
-
         if (!objectMap[this.y]) {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
+
+        let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
+
+        this.tween = new createjs.Tween.get(this.sprite)
+            .to({ tint: colorVariation.lighter }, 20) 
+            .wait(20)
+            .to({ tint: color }, 100)
+            .wait(100)
+            .to({ tint: colorVariation.darker }, 10)
+            .wait(10)
+            .call(() => {
+                this.tween.gotoAndPlay(0); // Restart the animation from the beginning
+            });
     }
 
     act() {
+        //createjs.Tween.tick();
         // Decrease turns left, if it reaches 0, stop spreading and destroy the sprite
         if (--this.turnsLeft <= 0) {
             this.sprite.destroy();
@@ -766,7 +855,7 @@ class Fire {
                     floorMap[newY][newX].value === 157 && 
                     (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
                 
-                    let fire = new Fire(newX, newY, this.scheduler);
+                    let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
                                     
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
                         // Set the transformation origin to the center of the sprite
@@ -785,7 +874,7 @@ class Fire {
                 }
             }
         }
-        if (Math.random() < 0.5) {
+        if (Math.random() < 0.7) {
             let newY = this.y - 1; // the tile above the current one
             if (newY >= 0 && floorMap[newY][this.x].value !== 177 && objectMap[newY][this.x] === null) {
                 let smoke = new Smoke(this.x, newY, this.scheduler);
@@ -1430,6 +1519,8 @@ function setup() {
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+
+    let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 20, 10, true);
 
@@ -1453,10 +1544,14 @@ function setup() {
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
 
+        /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
+        createMonsterSprite(chimera);
+        scheduler.add(chimera, true); */
+
         //add some fire
         for (let i = 0; i < 3; i++) {
             let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-            let fire = new Fire(randomTile.x, randomTile.y, scheduler);
+            let fire = new Fire(randomTile.x, randomTile.y, scheduler, '0xFFCC33');
             scheduler.add(fire, true); // the fire takes turns
         }
 
