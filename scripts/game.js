@@ -1287,12 +1287,13 @@ class UIBox {
 
         // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
         if (this.height == null){this.height = Math.min(this.textBuffer.length, MAP_HEIGHT );}
+        if (this.width == null){this.width = MAP_WIDTH};
 
         createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
-        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        for (let x = 1; x < this.width - 1; x++) {
             createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
         }
-        createSprite(MAP_WIDTH - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
+        createSprite(this.width - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
 
         // Draw the bottom border of the box
         createSprite(0, this.height - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
@@ -1316,13 +1317,13 @@ class UIBox {
                 }
             }
 
-            // Draw the bottom border of the box if it's the last line in the textBuffer
+            // Draw the bottom border of the box if it's the last line in the textBuffer, this was because the  box bottom was missing sometimes
             if (y === this.height - 1) {
                 createSprite(0, y + 1, BORDER_BOTTOM_LEFT, uiMap, 192);
-                for (let x = 1; x < MAP_WIDTH - 1; x++) {
+                for (let x = 1; x < this.width - 1; x++) {
                     createSprite(x, y + 1, BORDER_HORIZONTAL, uiMap, 196);
                 }
-                createSprite(MAP_WIDTH - 1, y + 1, BORDER_BOTTOM_RIGHT, uiMap, 217);
+                createSprite(this.width - 1, y + 1, BORDER_BOTTOM_RIGHT, uiMap, 217);
             }
         }
     }
@@ -1358,14 +1359,24 @@ class UIBox {
     }
 
     // Clears the message box
-    clearBox() {
-        const BLANK_TILE = { x: 21, y: 7 };
+    clearText() {
+        const WHITE_TILE = { x: 21, y: 7 };
         for(let y = 1; y < this.height - 1; y++) {
             for(let x = 1; x < this.width - 1; x++) {
+                createSprite(x, y, WHITE_TILE, uiMap, 0);
+            }
+        }
+    }
+
+    clearBox(){
+        const BLANK_TILE = { x: 0, y: 0 };
+        for(let y = 0; y < this.height; y++) {
+            for(let x = 0; x < this.width; x++) {
                 createSprite(x, y, BLANK_TILE, uiMap, 0);
             }
         }
     }
+
     toggleVisibility() {
         this.hidden = !this.hidden;
     }
@@ -1383,7 +1394,7 @@ class UIBox {
     render() {
         this.drawUIBox();
         if (!this.hidden && this.textBuffer.length > 0) {
-            this.clearBox();
+            this.clearText();
             const lastMessages = this.textBuffer.slice(-2);
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
