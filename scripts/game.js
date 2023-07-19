@@ -35,6 +35,7 @@ let gameOver = false;
 var players = [];
 let activeEntities = [];
 var messageList;
+var inspector;
 
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
@@ -88,6 +89,7 @@ const PlayerType = Object.freeze({
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList) {
+        this.name = "Bivoj";
         this.isDead = false;
         this.type = type;
         this.x = x;
@@ -416,7 +418,30 @@ function createPlayerSprite(player) {
 
     app.stage.addChild(spriteFootprint);
     app.stage.addChild(spriteOverlay);
+    spriteFootprint.interactive = true;  // Make the footprint sprite respond to interactivity
+    spriteFootprint.on('mouseover', () => {
+        messageList.hideBox();  // Hide messageList
+        inspector.showBox();  // Show inspector
+        inspector.textBuffer[0] = player.name;  // Add player's name to inspector
+        inspector.render();  // Render inspector
+    });
 
+    spriteOverlay.interactive = true;  // Make the overlay sprite respond to interactivity
+    spriteOverlay.on('mouseover', () => {
+        messageList.hideBox();  // Hide messageList
+        inspector.showBox();  // Show inspector
+        inspector.textBuffer[0] = player.type;  // Add player's name to inspector
+        inspector.render();  // Render inspector
+    });
+    spriteFootprint.on('mouseout', () => {
+        messageList.showBox();  // Show messageList
+        inspector.hideBox();  // Hide inspector
+    });
+    
+    spriteOverlay.on('mouseout', () => {
+        messageList.showBox();  // Show messageList
+        inspector.hideBox();  // Hide inspector
+    });
     player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
     let shadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         player.headShadowTile.x * TILE_WIDTH, 
@@ -1271,10 +1296,10 @@ class UIBox {
 
         // Draw the bottom border of the box
         createSprite(0, this.height - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
-        for (let x = 1; x < MAP_WIDTH - 1; x++) {
+        for (let x = 1; x < this.width - 1; x++) {
             createSprite(x, this.height - 1, BORDER_HORIZONTAL,uiMap, 196);
         }
-        createSprite(MAP_WIDTH - 1, this.height - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
+        createSprite(this.width - 1, this.height - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
 
         for (let y = 1; y < this.height; y++) {
             createSprite(0, y, BORDER_VERTICAL, uiMap, 179);
@@ -1395,7 +1420,7 @@ function setup() {
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
-    //let inspector = new UIBox(["Inspecting..."], 10, 10);
+    inspector = new UIBox([], 20, 10, true);
 
     // And handle them individually
     messageList.showBox();
