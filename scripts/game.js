@@ -442,11 +442,10 @@ function createPlayerSprite(player) {
 
     spriteOverlay.interactive = true;  
     spriteOverlay.on('mouseover', () => {
-        messageList.hideBox();  
+        messageList.hideBox();  // Hide messageList
+        inspector.showBox();  // Show inspector
         player.printStats();
-        inspector.showBox();  
-        
-        inspector.render();  
+        inspector.render();  // Render inspector
     });
     spriteFootprint.on('mouseout', () => {
         inspector.hideBox();
