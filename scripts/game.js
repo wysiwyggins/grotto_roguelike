@@ -9,6 +9,12 @@ let app = new PIXI.Application({
 
 
 app.stage.sortableChildren = true;
+let uiContainer = new PIXI.Container();
+let uiMaskContainer = new PIXI.Container();
+let gameContainer = new PIXI.Container();
+app.stage.addChild(gameContainer);
+app.stage.addChild(uiMaskContainer);
+app.stage.addChild(uiContainer);
 
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
@@ -28,6 +34,7 @@ let backgroundMap = createEmptyMap();
 let floorMap = createEmptyMap();
 let objectMap = createEmptyMap();
 let wallMap = createEmptyMap();
+let uiMaskMap = createEmptyMap();
 let uiMap = createEmptyMap();
 
 let engine;
@@ -88,7 +95,7 @@ const PlayerType = Object.freeze({
 
 
 class Player {
-    constructor(type, x, y, scheduler, engine, messageList) {
+    constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.name = "Bivoj";
         this.isDead = false;
         this.type = type;
@@ -108,6 +115,7 @@ class Player {
         this.scheduler = scheduler;
         this.engine = engine;
         this.messageList = messageList;
+        this.inspector = inspector;
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
         });
@@ -384,6 +392,12 @@ class Player {
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
     };
+    printStats() {
+        this.inspector.clearMessages();
+        this.inspector.addMessage("");
+        this.inspector.addMessage( "Name: " + this.name);
+        this.inspector.addMessage( "Blood: " + this.blood);
+    }
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
@@ -422,25 +436,26 @@ function createPlayerSprite(player) {
     spriteFootprint.on('mouseover', () => {
         messageList.hideBox();  // Hide messageList
         inspector.showBox();  // Show inspector
-        inspector.textBuffer[0] = player.name;  // Add player's name to inspector
+        player.printStats();
         inspector.render();  // Render inspector
     });
 
-    spriteOverlay.interactive = true;  // Make the overlay sprite respond to interactivity
+    spriteOverlay.interactive = true;  
     spriteOverlay.on('mouseover', () => {
-        messageList.hideBox();  // Hide messageList
-        inspector.showBox();  // Show inspector
-        inspector.textBuffer[0] = player.type;  // Add player's name to inspector
-        inspector.render();  // Render inspector
+        messageList.hideBox();  
+        player.printStats();
+        inspector.showBox();  
+        
+        inspector.render();  
     });
     spriteFootprint.on('mouseout', () => {
-        messageList.showBox();  // Show messageList
-        inspector.hideBox();  // Hide inspector
+        inspector.hideBox();
+        messageList.showBox();
     });
     
     spriteOverlay.on('mouseout', () => {
-        messageList.showBox();  // Show messageList
-        inspector.hideBox();  // Hide inspector
+        inspector.hideBox();
+        messageList.showBox();
     });
     player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
     let shadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
@@ -960,11 +975,20 @@ function createSprite(x, y, position, layer, value = null) {
     if (!layer[y]) {
         layer[y] = [];
     }
-
+    let container;
+    if (layer === uiMaskMap){
+        container = uiMaskContainer;
+    } else if (layer === uiMap) {
+        container = uiContainer;
+    } else {
+        container = gameContainer;
+    }
     // If a sprite already exists at this position, remove it from the stage
     if (layer?.[y]?.[x]?.sprite) {
-        app.stage.removeChild(layer[y][x].sprite);
+        container.removeChild(layer[y][x].sprite);
     }
+
+    
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
@@ -982,23 +1006,23 @@ function createSprite(x, y, position, layer, value = null) {
         sprite.alpha = 1;
     }
     if (layer === uiMap) {
-        sprite.zIndex = 5;
+        sprite.zIndex = 10;
         
         // Remove sprites on all layers beneath the UI layer if they exist at the same position
         if (wallMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(wallMap[y][x].sprite);
+            container.removeChild(wallMap[y][x].sprite);
             wallMap[y][x].sprite = null;
         }
         if (objectMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(objectMap[y][x].sprite);
+            container.removeChild(objectMap[y][x].sprite);
             objectMap[y][x].sprite = null;
         }
         if (floorMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(floorMap[y][x].sprite);
+            container.removeChild(floorMap[y][x].sprite);
             floorMap[y][x].sprite = null;
         }
         if (backgroundMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(backgroundMap[y][x].sprite);
+            container.removeChild(backgroundMap[y][x].sprite);
             backgroundMap[y][x].sprite = null;
         }
     } else if (layer === wallMap) {
@@ -1006,11 +1030,11 @@ function createSprite(x, y, position, layer, value = null) {
 
         // Remove sprites on layers beneath the wall layer if they exist at the same position
         if (floorMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(floorMap[y][x].sprite);
+            container.removeChild(floorMap[y][x].sprite);
             floorMap[y][x].sprite = null;
         }
         if (backgroundMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(backgroundMap[y][x].sprite);
+            container.removeChild(backgroundMap[y][x].sprite);
             backgroundMap[y][x].sprite = null;
         }
     } else if (layer === objectMap) {
@@ -1020,12 +1044,12 @@ function createSprite(x, y, position, layer, value = null) {
         
         // Remove sprites on the background layer if they exist at the same position
         if (backgroundMap?.[y]?.[x]?.sprite) {
-            app.stage.removeChild(backgroundMap[y][x].sprite);
+            container.removeChild(backgroundMap[y][x].sprite);
             backgroundMap[y][x].sprite = null;
         }
     }
 
-    app.stage.addChild(sprite);
+    container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
@@ -1041,28 +1065,6 @@ function createSprite(x, y, position, layer, value = null) {
 
 
 
-function overlaySprite(x, y, position, value = null) {
-    if (!floorMap[y]) {
-        floorMap[y] = [];
-    }
-
-    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
-    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        position.x * TILE_WIDTH,
-        position.y * TILE_HEIGHT,
-        TILE_WIDTH, TILE_HEIGHT));
-    
-    let sprite = new PIXI.Sprite(texture);
-    sprite.scale.set(SCALE_FACTOR);
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
-    
-    app.stage.addChild(sprite);
-
-    // If value is not provided, keep the existing value or set to null
-    let existingValue = floorMap[y][x] ? floorMap[y][x].value : null;
-    floorMap[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
-}
 
 
 function createVoid(x, y) {
@@ -1361,8 +1363,27 @@ class UIBox {
         this.height = height || textBuffer.length;
         this.hidden = hidden;
         this.height = Math.min(this.height, MAP_HEIGHT);
+        this.originalTiles = [];
+    }
+     // Clears the message box
+    maskBox() {
+        const WHITE_TILE = { x: 21, y: 7 };
+        for(let y = 0; y < this.height +1; y++) {
+            for(let x = 0; x < this.width; x++) {
+                createSprite(x, y, WHITE_TILE, uiMaskMap, 0);
+            }
+        }
     }
 
+    clearBox(){
+        const BLANK_TILE = { x: 0, y: 0 };
+        for(let y = 0; y < this.height+1; y++) {
+            for(let x = 0; x < this.width; x++) {
+                createSprite(x, y, BLANK_TILE, uiMap, 0);
+                createSprite(x, y, BLANK_TILE, uiMaskMap, 0);
+            }
+        }
+    }
     // a function to draw a box with sprites
     drawUIBox() {
         if (this.hidden) return; // If box is hidden, don't draw it
@@ -1372,31 +1393,25 @@ class UIBox {
         const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
         const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
         const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
-        const BLANK_TILE = { x: 21, y: 7};
+        const WHITE_TILE = { x: 21, y: 7};
 
         // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
         if (this.height == null){this.height = Math.min(this.textBuffer.length, MAP_HEIGHT );}
         if (this.width == null){this.width = MAP_WIDTH};
 
+        this.maskBox();
         createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
         for (let x = 1; x < this.width - 1; x++) {
             createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
         }
         createSprite(this.width - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
 
-        // Draw the bottom border of the box
-        createSprite(0, this.height - 1, BORDER_BOTTOM_LEFT,uiMap, 192);
-        for (let x = 1; x < this.width - 1; x++) {
-            createSprite(x, this.height - 1, BORDER_HORIZONTAL,uiMap, 196);
-        }
-        createSprite(this.width - 1, this.height - 1, BORDER_BOTTOM_RIGHT,uiMap, 217);
-
         for (let y = 1; y < this.height; y++) {
             createSprite(0, y, BORDER_VERTICAL, uiMap, 179);
             createSprite(this.width - 1, y, BORDER_VERTICAL, uiMap, 179);
-            for(let x = 1; x < this.width - 1; x++) {
-                createSprite(x, y, BLANK_TILE, uiMap, 0);
-            }
+            /* for(let x = 1; x < this.width - 1; x++) {
+                createSprite(x, y, WHITE_TILE, uiMap, 0);
+            } */
             // Write the message
             let message = this.textBuffer[y - 1]; // get the message from the buffer
             if (message) {
@@ -1441,29 +1456,14 @@ class UIBox {
         this.textBuffer.push(message);
         this.render();
     }
+
+    clearMessages(){
+        this.textBuffer = [];
+    }
     
     // Toggles the active state
     toggleActive() {
         this.active = !this.active;
-    }
-
-    // Clears the message box
-    clearText() {
-        const WHITE_TILE = { x: 21, y: 7 };
-        for(let y = 1; y < this.height - 1; y++) {
-            for(let x = 1; x < this.width - 1; x++) {
-                createSprite(x, y, WHITE_TILE, uiMap, 0);
-            }
-        }
-    }
-
-    clearBox(){
-        const BLANK_TILE = { x: 0, y: 0 };
-        for(let y = 0; y < this.height; y++) {
-            for(let x = 0; x < this.width; x++) {
-                createSprite(x, y, BLANK_TILE, uiMap, 0);
-            }
-        }
     }
 
     toggleVisibility() {
@@ -1483,7 +1483,7 @@ class UIBox {
     render() {
         this.drawUIBox();
         if (!this.hidden && this.textBuffer.length > 0) {
-            this.clearText();
+            this.maskBox();
             const lastMessages = this.textBuffer.slice(-2);
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
@@ -1536,7 +1536,7 @@ function setup() {
 
         let scheduler = new ROT.Scheduler.Simple();
         engine = new ROT.Engine(scheduler);
-        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList);
+        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList, inspector);
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
