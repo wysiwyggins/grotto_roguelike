@@ -434,18 +434,18 @@ function createPlayerSprite(player) {
     app.stage.addChild(spriteOverlay);
     spriteFootprint.interactive = true;  // Make the footprint sprite respond to interactivity
     spriteFootprint.on('mouseover', () => {
-        messageList.hideBox();  // Hide messageList
-        inspector.showBox();  // Show inspector
+        messageList.hideBox();  
         player.printStats();
-        inspector.render();  // Render inspector
+        inspector.showBox();  
+        inspector.render();  
     });
 
     spriteOverlay.interactive = true;  
     spriteOverlay.on('mouseover', () => {
-        messageList.hideBox();  // Hide messageList
-        inspector.showBox();  // Show inspector
+        messageList.hideBox();  
         player.printStats();
-        inspector.render();  // Render inspector
+        inspector.showBox();  
+        inspector.render();  
     });
     spriteFootprint.on('mouseout', () => {
         inspector.hideBox();
