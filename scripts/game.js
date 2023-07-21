@@ -494,14 +494,16 @@ const Attacks = {
     FIREBREATH: function(monster, target) {
         target.isBurning = true;
         let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
-        new Fire(target.x, target.y, monster.scheduler, '0xFF0000');
+        let fire1 = new Fire(target.x, target.y, monster.scheduler, '0xFF0000');//one fire directly on the player
+        monster.scheduler.add(fire1, true);
         while (fireTilesCount-- > 0) {
             let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let newX = target.x + dx;
             let newY = target.y + dy;
             if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                new Fire(newX, newY, monster.scheduler, '0xFF0000');
+                let fire = new Fire(newX, newY, monster.scheduler, '0xFF0000');
+                monster.scheduler.add(fire, true);
             }
         }
         messageList.addMessage("The {0} breathes flames!", [monster.name]);
@@ -840,6 +842,7 @@ class Fire {
     act() {
         //createjs.Tween.tick();
         // Decrease turns left, if it reaches 0, stop spreading and destroy the sprite
+        console.log("fire turn");
         if (--this.turnsLeft <= 0) {
             this.sprite.destroy();
             this.scheduler.remove(this);
@@ -869,6 +872,7 @@ class Fire {
                     (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
                 
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
+                    objectMap[newY][newX].value = 300;
                                     
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
                         // Set the transformation origin to the center of the sprite
@@ -1562,7 +1566,7 @@ function setup() {
             let fire = new Fire(randomTile.x, randomTile.y, scheduler, '0xFFCC33');
             scheduler.add(fire, true); // the fire takes turns
         }
-
+ 
         engine.start(); // start the engine
     });
 
