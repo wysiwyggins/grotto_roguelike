@@ -1458,6 +1458,15 @@ class UIBox {
     clearMessages(){
         this.textBuffer = [];
     }
+
+    clearText(){
+        const BLANK_TILE = { x: 0, y: 0 };
+        for(let y = 1; y < this.height - 1; y++) {
+            for(let x = 1; x < this.width - 1; x++) {
+                createSprite(x, y, BLANK_TILE, uiMap, 0);
+            }
+        }
+    }
     
     // Toggles the active state
     toggleActive() {
@@ -1481,6 +1490,7 @@ class UIBox {
     render() {
         this.drawUIBox();
         if (!this.hidden && this.textBuffer.length > 0) {
+            this.clearText();
             this.maskBox();
             const lastMessages = this.textBuffer.slice(-2);
             for(let i = 0; i < lastMessages.length; i++) {
