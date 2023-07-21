@@ -379,7 +379,6 @@ class Player {
                 headPosition = {x: 1, y: 0};
                 break;
         }
-    
         let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
             footprintPosition.x * TILE_WIDTH, 
             footprintPosition.y * TILE_HEIGHT, 
@@ -430,8 +429,8 @@ function createPlayerSprite(player) {
     spriteOverlay.x = spriteFootprint.x;
     spriteOverlay.y = spriteFootprint.y - TILE_HEIGHT * SCALE_FACTOR;
 
-    app.stage.addChild(spriteFootprint);
-    app.stage.addChild(spriteOverlay);
+    gameContainer.addChild(spriteFootprint);
+    gameContainer.addChild(spriteOverlay);
     spriteFootprint.interactive = true;  // Make the footprint sprite respond to interactivity
     spriteFootprint.on('mouseover', () => {
         messageList.hideBox();  
@@ -475,11 +474,11 @@ function createPlayerSprite(player) {
     spriteFootShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the shadow
     spriteFootShadow.visible = false;
 
-    app.stage.addChild(spriteFootShadow);
+    gameContainer.addChild(spriteFootShadow);
 
     player.sprite.footShadow = spriteFootShadow;
 
-    app.stage.addChild(spriteShadow);
+    gameContainer.addChild(spriteShadow);
     
     player.sprite.shadow= spriteShadow;
 
@@ -751,8 +750,8 @@ function createMonsterSprite(monster) {
     if (monster.spriteFlip.secondTile.y) {
         spriteSecondTile.scale.y *= -1; // Flip vertically
     }
-    app.stage.addChild(spriteFirstTile);
-    app.stage.addChild(spriteSecondTile);
+    gameContainer.addChild(spriteFirstTile);
+    gameContainer.addChild(spriteSecondTile);
 
     monster.sprite = { firstTile: spriteFirstTile, secondTile: spriteSecondTile };
     let firstShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
@@ -773,8 +772,8 @@ function createMonsterSprite(monster) {
     spriteSecondShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the wall
     spriteSecondShadow.visible = false;
 
-    app.stage.addChild(spriteFirstShadow);
-    app.stage.addChild(spriteSecondShadow);
+    gameContainer.addChild(spriteFirstShadow);
+    gameContainer.addChild(spriteSecondShadow);
 
     monster.sprite.firstShadow = spriteFirstShadow;
     monster.sprite.secondShadow = spriteSecondShadow;
@@ -817,7 +816,7 @@ class Fire {
         this.sprite.zIndex = 2;
         this.sprite.tint = this.color;  // apply the tint
         this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
-        app.stage.addChild(this.sprite);
+        gameContainer.addChild(this.sprite);
         
         if (!objectMap[this.y]) {
             objectMap[this.y] = [];
@@ -916,7 +915,7 @@ class Smoke {
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
         this.sprite.scale.set(SCALE_FACTOR); 
         this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
-        app.stage.addChild(this.sprite);
+        gameContainer.addChild(this.sprite);
         objectMap[this.y][this.x] = 400;
     }
 
