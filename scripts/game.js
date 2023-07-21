@@ -13,6 +13,7 @@ let uiContainer = new PIXI.Container();
 let uiMaskContainer = new PIXI.Container();
 let gameContainer = new PIXI.Container();
 app.stage.addChild(gameContainer);
+gameContainer.sortableChildren = true;
 app.stage.addChild(uiMaskContainer);
 app.stage.addChild(uiContainer);
 
