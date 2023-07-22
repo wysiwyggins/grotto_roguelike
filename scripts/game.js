@@ -974,7 +974,7 @@ function checkGameState() {
     }
 }
 
-function createSprite(x, y, position, layer, value = null) {
+function createSprite(x, y, index, layer, value = null) {
     if (!layer[y]) {
         layer[y] = [];
     }
@@ -986,7 +986,6 @@ function createSprite(x, y, position, layer, value = null) {
     } else {
         container = gameContainer;
     }
-    // If a sprite already exists at this position, remove it from the stage
     if (layer?.[y]?.[x]?.sprite) {
         container.removeChild(layer[y][x].sprite);
     }
@@ -995,8 +994,8 @@ function createSprite(x, y, position, layer, value = null) {
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        position.x * TILE_WIDTH,
-        position.y * TILE_HEIGHT,
+        index.x * TILE_WIDTH,
+        index.y * TILE_HEIGHT,
         TILE_WIDTH, TILE_HEIGHT));
 
     let sprite = new PIXI.Sprite(texture);
@@ -1012,54 +1011,48 @@ function createSprite(x, y, position, layer, value = null) {
         sprite.zIndex = 10;
         
         // Remove sprites on all layers beneath the UI layer if they exist at the same position
-        if (wallMap?.[y]?.[x]?.sprite) {
+        if (wallMap?.[y]?.[x]) {
             container.removeChild(wallMap[y][x].sprite);
-            wallMap[y][x].sprite = null;
+            wallMap[y][x] = null;
         }
-        if (objectMap?.[y]?.[x]?.sprite) {
+        if (objectMap?.[y]?.[x]) {
             container.removeChild(objectMap[y][x].sprite);
-            objectMap[y][x].sprite = null;
+            objectMap[y][x] = null;
         }
-        if (floorMap?.[y]?.[x]?.sprite) {
+        if (floorMap?.[y]?.[x]) {
             container.removeChild(floorMap[y][x].sprite);
-            floorMap[y][x].sprite = null;
+            floorMap[y][x] = null;
         }
-        if (backgroundMap?.[y]?.[x]?.sprite) {
+        if (backgroundMap?.[y]?.[x]) {
             container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x].sprite = null;
+            backgroundMap[y][x] = null;
         }
     } else if (layer === wallMap) {
         sprite.zIndex = 3;
 
         // Remove sprites on layers beneath the wall layer if they exist at the same position
-        if (floorMap?.[y]?.[x]?.sprite) {
+        if (floorMap?.[y]?.[x]) {
             container.removeChild(floorMap[y][x].sprite);
-            floorMap[y][x].sprite = null;
+            floorMap[y][x] = null;
         }
-        if (backgroundMap?.[y]?.[x]?.sprite) {
+        if (backgroundMap?.[y]?.[x]) {
             container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x].sprite = null;
+            backgroundMap[y][x] = null;
         }
     } else if (layer === objectMap) {
         sprite.zIndex = 2; // Set zIndex for objectMap
     } else if (layer === floorMap) {
         sprite.zIndex = 1;
-        
-        // Remove sprites on the background layer if they exist at the same position
-        if (backgroundMap?.[y]?.[x]?.sprite) {
-            container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x].sprite = null;
-        }
     }
 
     container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
-    layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
+    layer[y][x] = {value: value !== null ? value : existingValue};
 
     // Update zIndex for objectMap based on y position compared to walls
-    if (layer === objectMap && wallMap?.[y]?.[x]?.sprite) {
-        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+    if (layer === objectMap && wallMap?.[y]?.[x] {
+        if (y * TILE_HEIGHT * SCALE_FACTOR < container[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
