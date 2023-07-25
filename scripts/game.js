@@ -268,8 +268,8 @@ class Player {
                     if (wallMap[y]?.[x]?.sprite) {
                         wallMap[y][x].sprite.alpha = 1;
                     }
-                    if (uiMap[y]?.[x]?.sprite) {
-                        uiMap[y][x].sprite.alpha = 1;
+                    if (uiMaskMap[y]?.[x]?.sprite) {
+                        uiMaskMap[y][x].sprite.alpha = 1;
                     }
                 }
             }
@@ -284,8 +284,8 @@ class Player {
                     createFloor(x,y);
                     wallMap[y][x].sprite.alpha = 0.5;
                 }
-                if (uiMap[y]?.[x]?.sprite) {
-                    uiMap[y][x].sprite.alpha = 0.5;
+                if (uiMaskMap[y]?.[x]?.sprite) {
+                    uiMaskMap[y][x].sprite.alpha = 0.5;
                 }
             }
         }
@@ -513,7 +513,7 @@ const Attacks = {
 }
 
 class Monster {
-    constructor(type, x, y, scheduler, engine, messageList) {
+    constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.name = null;
         console.log("ROAR");
         this.isDead = false;
@@ -532,6 +532,7 @@ class Monster {
         this.scheduler = scheduler;
         this.engine = engine;
         this.messageList = messageList;
+        this.inspector = inspector;
         this.blood = 100;
         this.isBurning = false;
         this.burningTurns = 0;
@@ -693,7 +694,12 @@ class Monster {
             }
         }
         
-        
+    }
+    printStats() {
+        this.inspector.clearMessages();
+        this.inspector.addMessage("");
+        this.inspector.addMessage( "Name: " + this.name);
+        this.inspector.addMessage( "Blood: " + this.blood);
     }
 }
 
@@ -780,7 +786,32 @@ function createMonsterSprite(monster) {
 
     monster.sprite.firstShadow = spriteFirstShadow;
     monster.sprite.secondShadow = spriteSecondShadow;
+    spriteFirstTile.interactive = true;  // Make the sprite respond to interactivity
+    spriteFirstTile.on('mouseover', () => {
+        messageList.hideBox();  
+        monster.printStats();  // Ensure there's a printStats method for Monster
+        inspector.showBox();  
+        inspector.render();  
+    });
+
+    spriteSecondTile.interactive = true;  
+    spriteSecondTile.on('mouseover', () => {
+        messageList.hideBox();  
+        monster.printStats();  // Ensure there's a printStats method for Monster
+        inspector.showBox();  
+        inspector.render();  
+    });
+
+    spriteFirstTile.on('mouseout', () => {
+        inspector.hideBox();
+        messageList.showBox();
+    });
     
+    spriteSecondTile.on('mouseout', () => {
+        inspector.hideBox();
+        messageList.showBox();
+    });
+
 }
 
 function generateColorVariation(color, variation) {
@@ -1007,52 +1038,37 @@ function createSprite(x, y, index, layer, value = null) {
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
     }
-    if (layer === uiMap) {
-        sprite.zIndex = 10;
-        
-        // Remove sprites on all layers beneath the UI layer if they exist at the same position
-        if (wallMap?.[y]?.[x]) {
-            container.removeChild(wallMap[y][x].sprite);
-            wallMap[y][x] = null;
-        }
-        if (objectMap?.[y]?.[x]) {
-            container.removeChild(objectMap[y][x].sprite);
-            objectMap[y][x] = null;
-        }
-        if (floorMap?.[y]?.[x]) {
-            container.removeChild(floorMap[y][x].sprite);
-            floorMap[y][x] = null;
-        }
-        if (backgroundMap?.[y]?.[x]) {
-            container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x] = null;
-        }
-    } else if (layer === wallMap) {
+    if (layer === wallMap) {
         sprite.zIndex = 3;
 
         // Remove sprites on layers beneath the wall layer if they exist at the same position
-        if (floorMap?.[y]?.[x]) {
+        if (floorMap?.[y]?.[x]?.sprite) {
             container.removeChild(floorMap[y][x].sprite);
-            floorMap[y][x] = null;
+            floorMap[y][x].sprite = null;
         }
-        if (backgroundMap?.[y]?.[x]) {
+        if (backgroundMap?.[y]?.[x]?.sprite) {
             container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x] = null;
+            backgroundMap[y][x].sprite = null;
         }
     } else if (layer === objectMap) {
         sprite.zIndex = 2; // Set zIndex for objectMap
     } else if (layer === floorMap) {
         sprite.zIndex = 1;
+        
+        // Remove sprites on the background layer if they exist at the same position
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            container.removeChild(backgroundMap[y][x].sprite);         
+        }
     }
 
     container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
-    layer[y][x] = {value: value !== null ? value : existingValue};
+    layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
 
     // Update zIndex for objectMap based on y position compared to walls
-    if (layer === objectMap && wallMap?.[y]?.[x] {
-        if (y * TILE_HEIGHT * SCALE_FACTOR < container[y][x].sprite.y) {
+    if (layer === objectMap && wallMap?.[y]?.[x]?.sprite) {
+        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
@@ -1546,7 +1562,7 @@ function setup() {
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
-        let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList);
+        let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
 
