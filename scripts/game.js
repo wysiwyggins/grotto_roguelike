@@ -10,6 +10,7 @@ let app = new PIXI.Application({
 
 app.stage.sortableChildren = true;
 let uiContainer = new PIXI.Container();
+let uiContainerShown = true;
 let uiMaskContainer = new PIXI.Container();
 let gameContainer = new PIXI.Container();
 app.stage.addChild(gameContainer);
@@ -44,7 +45,13 @@ var players = [];
 let activeEntities = [];
 var messageList;
 var inspector;
+createjs.Ticker.framerate = 60;
+createjs.Ticker.addEventListener("tick", createjs.Tween);
 
+/* app.ticker.add((delta) => {
+    // game loop code here
+    createjs.Tween.update(); // Update CreateJS tweens
+}); */
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -337,8 +344,15 @@ class Player {
         }
 
         // Ensure that we only unlock the engine if it's locked
+        
+        
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
+
+            // this was going to fade the background of the messagebox out until a new message popped up, but it got tricky and was disabled
+            /* if (uiContainerShown && !this.attemptingFireEntry) {
+                this.messageList.hideUIContainer();
+            } */
         }
     }
     applyDamageEffects() {
@@ -402,6 +416,7 @@ class Player {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
         checkGameState();
+        
     }
     
 }
@@ -432,9 +447,10 @@ function createPlayerSprite(player) {
 
     gameContainer.addChild(spriteFootprint);
     gameContainer.addChild(spriteOverlay);
+    
     spriteFootprint.interactive = true;  // Make the footprint sprite respond to interactivity
     spriteFootprint.on('mouseover', () => {
-        messageList.hideBox();  
+        messageList.hideBox(); 
         player.printStats();
         inspector.showBox();  
         inspector.render();  
@@ -975,6 +991,35 @@ class Smoke {
     }
 }
 
+//items
+
+let CanBePickedUp = {
+    pickup: function(player) {
+        player.addItem(this);
+        // Remove the item from the map or its container
+    }
+}
+
+class Item {
+    constructor(name, type, tile) {
+        this._name = name;
+        this._type = type;
+        this._tile = tile;
+    }
+    get name() {
+        return this._name;
+    }
+    get type() {
+        return this._type;
+    }
+    get tile() {
+        return this._tile;
+    }
+}
+
+// Mixin CanBePickedUp into Item
+Object.assign(Item.prototype, CanBePickedUp);
+
 
 // This function advances the turn after a delay of 1 second
 function delayedAdvanceTurn() {
@@ -1458,9 +1503,47 @@ class UIBox {
         //console.log(`Character ${char}, sprite coordinates: ${spriteColumn}, ${spriteRow}`);
         return { x: spriteColumn, y: spriteRow };
     }
+    showUIContainer() {
+        console.log("I thought I turned on the UI Mask");
+        createjs.Tween.get(uiMaskContainer).to({alpha: 1}, 100) // fade in
+        .call(() => {
+            uiContainerShown = true;
+        });
+        uiMaskContainer.alpha = 1;
+    }
+    
+    hideUIContainer() {
+        createjs.Tween.get(uiMaskContainer).to({alpha: 0}, 600) // fade out
+        .call(() => {
+            uiContainerShown = false;
+        });
+    }
+    showBox() {
+        if (!uiContainerShown) {
+            this.showUIContainer();
+        }
+        this.hidden = false;
+        this.drawUIBox();
+    }
 
+    hideBox() {
+        this.hidden = true;
+        this.clearBox();
+    }
+
+    toggleVisibility() {
+        this.hidden = !this.hidden;
+        if(this.hidden) {
+            this.hideBox();
+        } else {
+            this.showBox();
+        }
+    }
     // Adds a message to the list
     addMessage(template, parameters = []) {
+        if (!uiContainerShown) {
+            this.showUIContainer();
+        }
         let message = template;
         for(let i = 0; i < parameters.length; i++) {
             message = message.replace(`{${i}}`, parameters[i]);
@@ -1489,16 +1572,6 @@ class UIBox {
 
     toggleVisibility() {
         this.hidden = !this.hidden;
-    }
-
-    showBox() {
-        this.hidden = false;
-        this.drawUIBox();
-    }
-
-    hideBox() {
-        this.hidden = true;
-        this.clearBox();
     }
 
     render() {
@@ -1548,6 +1621,7 @@ function setup() {
 
     // And handle them individually
     messageList.showBox();
+    messageList.showUIContainer();
 
     PIXI.Loader.shared.onComplete.add(() => {
         for (let i = 0; i < 7; i++) { // assuming you have 4 frames of fire animation
