@@ -124,6 +124,7 @@ class Player {
         this.engine = engine;
         this.messageList = messageList;
         this.inspector = inspector;
+
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
         });
@@ -131,7 +132,7 @@ class Player {
         this.blood = 100;
         this.isBurning = false;
         this.burningTurns = 0;
-        
+        this.inventory = [];
         
         // You can set the specific footprint and head tiles for each player type here.
         switch(type) {
@@ -244,6 +245,11 @@ class Player {
                 this.attemptingFireEntry = false;
                 this.fireEntryDirection = null;
             }
+            let item = objectMap[newTileY][newTileX]?.item;
+            if (item) {
+                this.pickUpItem(item, newTileX, newTileY);
+            }
+
         }
 
         //shadow stuff
@@ -305,6 +311,7 @@ class Player {
 
 
     }
+
     handleKeydown(event) {
         if (this.isDead) return;  
         if (this.attemptingFireEntry) {
@@ -355,6 +362,19 @@ class Player {
             } */
         }
     }
+
+    pickUpItem(item, x, y) {
+        // Remove the item from the object map and the game container
+        objectMap[y][x] = null;
+        gameContainer.removeChild(item.sprite);
+        
+        // Add the item to the player's inventory
+        this.inventory.push(item);
+
+        // Log a message about the item picked up
+        this.messageList.addMessage(`You picked up a ${item.name}.`);
+    }
+
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
@@ -411,6 +431,15 @@ class Player {
         this.inspector.addMessage("");
         this.inspector.addMessage( "Name: " + this.name);
         this.inspector.addMessage( "Blood: " + this.blood);
+        // Print inventory items
+        if (this.inventory.length === 0) {
+            this.inspector.addMessage("Inventory: Empty");
+        } else {
+            this.inspector.addMessage("Inventory:");
+            for (let item of this.inventory) {
+                this.inspector.addMessage("- " + item.name);
+            }
+        }
     }
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
@@ -1000,18 +1029,58 @@ let CanBePickedUp = {
     }
 }
 
+const ItemType = Object.freeze({
+    "FOOD": 0,
+    "WEAPON": 1,
+});
+
 class Item {
-    constructor(name, type, tile) {
-        this._name = name;
-        this._type = type;
-        this._tile = tile;
+    constructor(type, x, y) {
+        this.x = x;
+        this.y = y;
+
+        switch (type) {
+            case ItemType.WEAPON:
+                this._name = 'Bow';
+                this._type = type;
+                this._tileIndex = {x: 13, y: 0};  // the tile indices on the spritesheet for the Bow
+                this._objectNumber = 100;
+                break;
+            // Add more cases here for other types of items
+        }
+
+        // Create texture and sprite based on the tile index
+        let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+        this.spriteTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            this._tileIndex.x * TILE_WIDTH, 
+            this._tileIndex.y * TILE_HEIGHT, 
+            TILE_WIDTH, 
+            TILE_HEIGHT
+        ));
+        this.sprite = new PIXI.Sprite(this.spriteTexture);
+
+        // Set position, scale, and zIndex of the sprite
+        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);
+        this.sprite.scale.set(SCALE_FACTOR);
+        this.sprite.zIndex = 2;
+
+        // Add sprite to gameContainer
+        gameContainer.addChild(this.sprite);
+
+        if (!objectMap[this.y]) {
+            objectMap[this.y] = [];
+        }
+        objectMap[this.y][this.x] = { value: this._objectNumber, sprite: this.sprite, item: this };
     }
+
     get name() {
         return this._name;
     }
+
     get type() {
         return this._type;
     }
+
     get tile() {
         return this._tile;
     }
@@ -1450,7 +1519,7 @@ class UIBox {
         const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
         const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
         const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
-        const WHITE_TILE = { x: 21, y: 7};
+        //const WHITE_TILE = { x: 21, y: 7};
 
         // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
         if (this.height == null){this.height = Math.min(this.textBuffer.length, MAP_HEIGHT );}
@@ -1579,7 +1648,7 @@ class UIBox {
         if (!this.hidden && this.textBuffer.length > 0) {
             this.clearText();
             this.maskBox();
-            const lastMessages = this.textBuffer.slice(-2);
+            const lastMessages = this.textBuffer.slice(-this.height + 2);
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
                 let y = 2 + i;
@@ -1588,7 +1657,7 @@ class UIBox {
                     createSprite(j + 1, y, spriteLocation, uiMap, message.charCodeAt(j));
                 }
             }
-            if (this.textBuffer.length > 2) {
+            while (this.textBuffer.length > this.height - 2) {
                 this.textBuffer.shift();
             }
         }
@@ -1639,7 +1708,7 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
-
+        let bow = new Item(ItemType.WEAPON,randomTile3.x, randomTile3.y)
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
