@@ -356,24 +356,28 @@ class Player {
     }
     async moveTo(targetX, targetY) {
         if (targetX === this.x && targetY === this.y) return;
-    
+
         let path = [];
         let stuckCounter = 0; // add a counter for stuck moves
-    
+
         let passableCallback = (x, y) => {
             let floorTileValue = floorMap[y][x]?.value;
             let objectTileValue = objectMap[y][x]?.value;
+            // Tile is considered "unpassable" if it's on fire.
+            if (objectTileValue === 300) {
+                return false;
+            }
             return floorTileValue === 157 && (!objectTileValue || objectTileValue < 300);
         }
-    
+
         let astar = new ROT.Path.AStar(targetX, targetY, passableCallback);
-    
+
         let pathCallback = (x, y) => {
             path.push({ x, y });
         }
-    
+
         astar.compute(this.x, this.y, pathCallback);
-    
+
         if (path.length === 0) {
             this.messageList.addMessage("There's no clear path to there.");
             return;
