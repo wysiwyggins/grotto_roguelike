@@ -200,6 +200,7 @@ class Player {
 
         // make sure the click is inside the map and on a walkable tile
         if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+            this.messageList.addMessage("Walking.");
             this.moveTo(x, y);
         }
     }    
@@ -227,6 +228,22 @@ class Player {
                 break;
             case 'right':
                 newX += TILE_WIDTH * SCALE_FACTOR;
+                break;
+            case 'up-left':
+                newX -= TILE_WIDTH * SCALE_FACTOR;
+                newY -= TILE_HEIGHT * SCALE_FACTOR;
+                break;
+            case 'up-right':
+                newX += TILE_WIDTH * SCALE_FACTOR;
+                newY -= TILE_HEIGHT * SCALE_FACTOR;
+                break;
+            case 'down-left':
+                newX -= TILE_WIDTH * SCALE_FACTOR;
+                newY += TILE_HEIGHT * SCALE_FACTOR;
+                break;
+            case 'down-right':
+                newX += TILE_WIDTH * SCALE_FACTOR;
+                newY += TILE_HEIGHT * SCALE_FACTOR;
                 break;
         }
     
@@ -332,48 +349,49 @@ class Player {
         return new Promise(resolve => {
             setTimeout(() => {
                 this.move(direction);
+                this.messageList.addDotToEndOfLastMessage();
                 resolve();
             }, delay);
         });
     }
     async moveTo(targetX, targetY) {
-        // check if the target tile is the same as the current tile
         if (targetX === this.x && targetY === this.y) return;
-
-        // create an empty array for the path
+    
         let path = [];
-
-        // create a passable callback for the A* algorithm
+        let stuckCounter = 0; // add a counter for stuck moves
+    
         let passableCallback = (x, y) => {
             let floorTileValue = floorMap[y][x]?.value;
             let objectTileValue = objectMap[y][x]?.value;
             return floorTileValue === 157 && (!objectTileValue || objectTileValue < 300);
         }
-
-        // create a pathfinder
+    
         let astar = new ROT.Path.AStar(targetX, targetY, passableCallback);
-
-        // create a path callback
+    
         let pathCallback = (x, y) => {
             path.push({ x, y });
         }
-
-        // compute the path
+    
         astar.compute(this.x, this.y, pathCallback);
-
-        // if the path is empty, add a message
+    
         if (path.length === 0) {
             this.messageList.addMessage("There's no clear path to there.");
             return;
         }
-
-        // iterate over the path and move the player
+    
         for (let point of path) {
             let { x, y } = point;
     
-            // calculate direction of movement
             let direction;
-            if (x < this.x) {
+            if (x < this.x && y < this.y) {
+                direction = 'up-left';
+            } else if (x > this.x && y < this.y) {
+                direction = 'up-right';
+            } else if (x < this.x && y > this.y) {
+                direction = 'down-left';
+            } else if (x > this.x && y > this.y) {
+                direction = 'down-right';
+            } else if (x < this.x) {
                 direction = 'left';
             } else if (x > this.x) {
                 direction = 'right';
@@ -383,15 +401,34 @@ class Player {
                 direction = 'down';
             }
     
-            // move the player with a delay
+            // Save old position
+            let oldX = this.x;
+            let oldY = this.y;
+    
             await this.delayedMove(direction, 200);  // 200ms delay
     
-            // unlock the engine
+            // After each move, check if the position has changed
+            if (this.x === oldX && this.y === oldY) {
+                // Increase the stuckCounter if the position hasn't changed
+                stuckCounter++;
+    
+                // If the player hasn't moved for 3 consecutive turns, assume it's stuck
+                if (stuckCounter >= 3) {
+                    this.messageList.addMessage("I can't move further in this direction.");
+                    break;  // Break the loop
+                }
+            } else {
+                // Reset the stuckCounter if the player has moved
+                stuckCounter = 0;
+            }
+    
             if (this.engine._lock) {
                 this.engine.unlock();
             }
         }
     }
+    
+    
 
     handleKeydown(event) {
         if (this.isDead) return;  
@@ -415,19 +452,37 @@ class Player {
         } else {
             switch (event.key) {
                 case 'ArrowUp':
+                case 'Numpad8':
                     this.move('up');
                     break;
                 case 'ArrowDown':
+                case 'Numpad2':
                     this.move('down');
                     break;
                 case 'ArrowLeft':
+                case 'Numpad4':
                     this.move('left');
                     break;
                 case 'ArrowRight':
+                case 'Numpad6':
                     this.move('right');
                     break;
-                default:
-                    return;  // Ignore all other keys
+            }
+        
+            // Handle diagonal movement
+            switch (event.code) {
+                case 'Numpad7':
+                    this.move('up-left');
+                    break;
+                case 'Numpad9':
+                    this.move('up-right');
+                    break;
+                case 'Numpad1':
+                    this.move('down-left');
+                    break;
+                case 'Numpad3':
+                    this.move('down-right');
+                    break;
             }
         }
 
@@ -822,7 +877,6 @@ class Monster {
     }
     printStats() {
         this.inspector.clearMessages();
-        this.inspector.addMessage("");
         this.inspector.addMessage( "Name: " + this.name);
         this.inspector.addMessage( "Blood: " + this.blood);
     }
@@ -1175,8 +1229,7 @@ function delayedAdvanceTurn() {
     
     setTimeout(function() {
         engine.unlock();
-        
-    }, 500);
+    }, 200);
 }
 
 // This function checks the state of the game and takes appropriate action
@@ -1194,9 +1247,10 @@ function checkGameState() {
         }
         // Otherwise, advance the turn after a delay of 1 second and show "Time passes..." message
         else if (isSomeoneCanAct) {
-            messageList.addMessage("Time passes...");
+            messageList.addMessage("Time passes.");
             if (engine._lock){
                 delayedAdvanceTurn();
+                messageList.addDotToEndOfLastMessage();
             }
         }
     }
@@ -1703,7 +1757,17 @@ class UIBox {
         this.textBuffer.push(message);
         this.render();
     }
-
+    addDotToEndOfLastMessage() {
+        let lastMessageIndex = this.textBuffer.length - 1;
+    
+        if (lastMessageIndex >= 0) {
+            let lastMessage = this.textBuffer[lastMessageIndex];
+            if (lastMessage.length < this.width - 2) { // -2 to leave space for the borders
+                this.textBuffer[lastMessageIndex] += ".";
+                this.render();
+            }
+        }
+    }
     clearMessages(){
         this.textBuffer = [];
     }
