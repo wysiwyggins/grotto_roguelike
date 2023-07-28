@@ -26,6 +26,14 @@ h1, h2 {
   font-size: 2em;
 }
 
+canvas {
+  width: 1200px;
+  height: 752px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 @font-face {
   font-family: "courier_prime_coderegular";
   src: url("/assets/fonts/courier_prime_code-webfont.woff2") format("woff2"), url("/assets/fonts/courier_prime_code-webfont.woff") format("woff");

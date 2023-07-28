@@ -1,7 +1,7 @@
 // Create a new Pixi Application
 let app = new PIXI.Application({
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: 1200,
+    height: 752,
     backgroundColor: 0xFFFFFF,
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
