@@ -2,7 +2,7 @@
 let app = new PIXI.Application({
     width: 1200,
     height: 752,
-    backgroundColor: 0xFFFFFF,
+    backgroundColor: 0xf5f5ee,
     resolution: window.devicePixelRatio || 1,
     autoDensity: true
 });
@@ -1121,7 +1121,7 @@ class Fire {
 
 class Smoke {
     constructor(x, y, scheduler) {
-        //console.log("Creating smoke")
+        console.log("Creating smoke")
         activeEntities.push(this);
         this.x = x;
         this.y = y;
