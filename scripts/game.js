@@ -428,7 +428,6 @@ class Player {
     };
     printStats() {
         this.inspector.clearMessages();
-        this.inspector.addMessage("");
         this.inspector.addMessage( "Name: " + this.name);
         this.inspector.addMessage( "Blood: " + this.blood);
         // Print inventory items
@@ -1491,7 +1490,7 @@ class UIBox {
         this.height = Math.min(this.height, MAP_HEIGHT);
         this.originalTiles = [];
     }
-     // Clears the message box
+    
     maskBox() {
         const WHITE_TILE = { x: 21, y: 7 };
         for(let y = 0; y < this.height +1; y++) {
@@ -1547,7 +1546,6 @@ class UIBox {
                 }
             }
 
-            // Draw the bottom border of the box if it's the last line in the textBuffer, this was because the  box bottom was missing sometimes
             if (y === this.height - 1) {
                 createSprite(0, y + 1, BORDER_BOTTOM_LEFT, uiMap, 192);
                 for (let x = 1; x < this.width - 1; x++) {
@@ -1617,6 +1615,7 @@ class UIBox {
         for(let i = 0; i < parameters.length; i++) {
             message = message.replace(`{${i}}`, parameters[i]);
         }
+        this.clearText();
         this.textBuffer.push(message);
         this.render();
     }
@@ -1648,13 +1647,19 @@ class UIBox {
         if (!this.hidden && this.textBuffer.length > 0) {
             this.clearText();
             this.maskBox();
+            const BLANK_TILE = { x: 0, y: 0 };
             const lastMessages = this.textBuffer.slice(-this.height + 2);
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
                 let y = 2 + i;
-                for(let j = 0; j < message.length; j++) {
-                    let spriteLocation = this.charToSpriteLocation(message.charAt(j));
-                    createSprite(j + 1, y, spriteLocation, uiMap, message.charCodeAt(j));
+                for(let j = 0; j < this.width; j++) { // not only the length of message but the full width of box
+                    let spriteLocation;
+                    if (j < message.length) {
+                        spriteLocation = this.charToSpriteLocation(message.charAt(j));
+                    } else {
+                        spriteLocation = BLANK_TILE;  // if it's after the end of the message, it's a blank tile
+                    }
+                    createSprite(j + 1, y, spriteLocation, uiMap, j < message.length ? message.charCodeAt(j) : 0);
                 }
             }
             while (this.textBuffer.length > this.height - 2) {
@@ -1685,6 +1690,7 @@ function setup() {
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
     let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 20, 10, true);
 
@@ -1709,6 +1715,7 @@ function setup() {
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
         let bow = new Item(ItemType.WEAPON,randomTile3.x, randomTile3.y)
+        let bow2 = new Item(ItemType.WEAPON,randomTile4.x, randomTile4.y)
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
