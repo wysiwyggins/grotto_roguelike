@@ -128,6 +128,9 @@ class Player {
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
         });
+        window.addEventListener('mousedown', (event) => {
+            this.handleClick(event);
+        });
         // stats
         this.blood = 100;
         this.isBurning = false;
@@ -179,13 +182,27 @@ class Player {
         }
     }
     static checkLivingPlayers() {
-            for (let player of players) {  // Assuming `players` is an array containing all player instances
-                if (!player.isDead) {
-                    return true;
-                }
+        for (let player of players) {
+            if (!player.isDead) {
+                return true;
             }
-            return false;
         }
+        return false;
+    }
+    
+    handleClick(event) {
+        // prevent default behavior of the event
+        event.preventDefault();
+
+        // calculate tile coordinates from pixel coordinates
+        let x = Math.floor((event.x - app.renderer.screen.x) / (TILE_WIDTH * SCALE_FACTOR));
+        let y = Math.floor((event.y - app.renderer.screen.y) / (TILE_HEIGHT * SCALE_FACTOR));
+
+        // make sure the click is inside the map and on a walkable tile
+        if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+            this.moveTo(x, y);
+        }
+    }    
     move(direction) {
         // Store previous position
         console.log('Player is taking turn...');
@@ -310,6 +327,70 @@ class Player {
         this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
 
 
+    }
+    delayedMove(direction, delay) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                this.move(direction);
+                resolve();
+            }, delay);
+        });
+    }
+    async moveTo(targetX, targetY) {
+        // check if the target tile is the same as the current tile
+        if (targetX === this.x && targetY === this.y) return;
+
+        // create an empty array for the path
+        let path = [];
+
+        // create a passable callback for the A* algorithm
+        let passableCallback = (x, y) => {
+            let floorTileValue = floorMap[y][x]?.value;
+            let objectTileValue = objectMap[y][x]?.value;
+            return floorTileValue === 157 && (!objectTileValue || objectTileValue < 300);
+        }
+
+        // create a pathfinder
+        let astar = new ROT.Path.AStar(targetX, targetY, passableCallback);
+
+        // create a path callback
+        let pathCallback = (x, y) => {
+            path.push({ x, y });
+        }
+
+        // compute the path
+        astar.compute(this.x, this.y, pathCallback);
+
+        // if the path is empty, add a message
+        if (path.length === 0) {
+            this.messageList.addMessage("There's no clear path to there.");
+            return;
+        }
+
+        // iterate over the path and move the player
+        for (let point of path) {
+            let { x, y } = point;
+    
+            // calculate direction of movement
+            let direction;
+            if (x < this.x) {
+                direction = 'left';
+            } else if (x > this.x) {
+                direction = 'right';
+            } else if (y < this.y) {
+                direction = 'up';
+            } else if (y > this.y) {
+                direction = 'down';
+            }
+    
+            // move the player with a delay
+            await this.delayedMove(direction, 200);  // 200ms delay
+    
+            // unlock the engine
+            if (this.engine._lock) {
+                this.engine.unlock();
+            }
+        }
     }
 
     handleKeydown(event) {
@@ -1089,12 +1170,13 @@ class Item {
 Object.assign(Item.prototype, CanBePickedUp);
 
 
-// This function advances the turn after a delay of 1 second
+// This function advances the turn after a delay of 1/2 second
 function delayedAdvanceTurn() {
+    
     setTimeout(function() {
         engine.unlock();
         
-    }, 1000);
+    }, 500);
 }
 
 // This function checks the state of the game and takes appropriate action
@@ -1113,7 +1195,9 @@ function checkGameState() {
         // Otherwise, advance the turn after a delay of 1 second and show "Time passes..." message
         else if (isSomeoneCanAct) {
             messageList.addMessage("Time passes...");
-            delayedAdvanceTurn();
+            if (engine._lock){
+                delayedAdvanceTurn();
+            }
         }
     }
 }
@@ -1652,7 +1736,7 @@ class UIBox {
             for(let i = 0; i < lastMessages.length; i++) {
                 let message = lastMessages[i];
                 let y = 2 + i;
-                for(let j = 0; j < this.width; j++) { // not only the length of message but the full width of box
+                for(let j = 0; j < this.width - 2; j++) { // Leave space for the border
                     let spriteLocation;
                     if (j < message.length) {
                         spriteLocation = this.charToSpriteLocation(message.charAt(j));
