@@ -379,7 +379,7 @@ class Player {
         astar.compute(this.x, this.y, pathCallback);
 
         if (path.length === 0) {
-            this.messageList.addMessage("There's no clear path to there.");
+            this.messageList.addMessage("You're not sure how to get there.");
             return;
         }
     
@@ -418,7 +418,7 @@ class Player {
     
                 // If the player hasn't moved for 3 consecutive turns, assume it's stuck
                 if (stuckCounter >= 3) {
-                    this.messageList.addMessage("I can't move further in this direction.");
+                    this.messageList.addMessage("You can't move further in this direction.");
                     break;  // Break the loop
                 }
             } else {
@@ -1365,6 +1365,13 @@ function createWall(x, y) {
     createSprite(x, y - 1, {x: 16, y: 7}, wallMap, 177); // middle
     createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
 }
+
+function createDoor(x, y) {
+    createSprite(x, y, {x: 10, y: 7}, floorMap, 177); // footprint
+    createSprite(x, y - 1, {x: 11, y: 7}, wallMap, 177); // middle
+    createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
+}
+
 function createVerticalWall(x, y) {
     if (wallMap[y][x] !== 131 && wallMap[y][x] !== 177){
         createSprite(x, y, {x: 16, y: 5}, floorMap, 177); // footprint
