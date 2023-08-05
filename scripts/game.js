@@ -31,6 +31,8 @@ const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
 const SPRITESHEET_COLUMNS = 23;
 const SPRITESHEET_ROWS = 11;
+
+let dungeon = null;
 //console.log('Initializing maps');
 let backgroundMap = createEmptyMap();
 let floorMap = createEmptyMap();
@@ -99,8 +101,6 @@ const PlayerType = Object.freeze({
     "VEGETABLE": 8
     
 });
-
-
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -329,10 +329,10 @@ class Player {
                 let x = this.x + dx;
                 if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) {
                     createFloor(x,y);
-                    wallMap[y][x].sprite.alpha = 0.5;
+                    wallMap[y][x].sprite.alpha = 0.2;
                 }
                 if (uiMaskMap[y]?.[x]?.sprite) {
-                    uiMaskMap[y][x].sprite.alpha = 0.5;
+                    uiMaskMap[y][x].sprite.alpha = 0.2;
                 }
             }
         }
@@ -606,7 +606,7 @@ function createPlayerSprite(player) {
         TILE_WIDTH, TILE_HEIGHT));
     let spriteOverlay = new PIXI.Sprite(overlayTexture);
     spriteOverlay.scale.set(SCALE_FACTOR);
-    spriteOverlay.zIndex = 1;
+    spriteOverlay.zIndex = 2;
 
     spriteFootprint.x = player.x * TILE_WIDTH * SCALE_FACTOR;
     spriteFootprint.y = player.y * TILE_HEIGHT * SCALE_FACTOR;
@@ -1224,6 +1224,75 @@ class Item {
     }
 }
 
+class Door {
+    constructor(id, x, y, colorValue, isLocked = false) {
+        this.id = id;
+        this.x = x;
+        this.y = y;
+        this.colorValue = colorValue;
+        this.isLocked = isLocked;
+        this.sprites = []; // This will hold the three parts of the door
+
+        this.createDoor();
+    }
+  
+    createDoor() {
+        const spriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}]; 
+
+        // Create footprint on the floor map
+        createSprite(this.x, this.y, spriteIndices[0], floorMap, this.isLocked ? 101 : 100);
+        this.sprites.push(floorMap[this.y][this.x].sprite);
+        
+        // Create middle and top parts on the wall map
+        for(let i = 1; i < spriteIndices.length; i++) {
+            if (wallMap[this.y - i][this.x].value != 131){
+                createSprite(this.x, this.y - i, spriteIndices[i], wallMap, 177);
+                let sprite = wallMap[this.y - i][this.x].sprite;
+                this.sprites.push(sprite);
+            }
+            
+        }
+        
+        // Apply color tint
+        this.sprites.forEach(sprite => sprite.tint = this.colorValue);
+    }
+  
+    lock() {
+        this.isLocked = true;
+        floorMap[this.y][this.x].value = 101; // Update the footprint value to represent locked door
+    }
+  
+    unlock() {
+        if (this.isLocked) {
+            this.isLocked = false;
+            floorMap[this.y][this.x].value = 100; // Update the footprint value to represent open door
+            this.open();
+        }
+    }
+  
+    isLocked() {
+        return this.isLocked;
+    }
+  
+    canUnlock(key) {
+        return key.id === this.id;
+    }
+  
+    open() {
+        if (!this.isLocked) {
+            this.sprites.forEach(sprite => {
+                gameContainer.removeChild(sprite);
+            });
+            this.sprites = [];
+            floorMap[this.y][this.x].value = null; // Remove the footprint of the door from the floor map
+            for(let i = 1; i < 3; i++) { // Remove the middle and top parts of the door from the wall map
+                wallMap[this.y - i][this.x].value = null;
+            }
+        }
+    }
+}
+
+
 // Mixin CanBePickedUp into Item
 Object.assign(Item.prototype, CanBePickedUp);
 
@@ -1297,6 +1366,10 @@ function createSprite(x, y, index, layer, value = null) {
         sprite.zIndex = 3;
 
         // Remove sprites on layers beneath the wall layer if they exist at the same position
+        if (wallMap?.[y]?.[x]?.sprite) {
+            container.removeChild(wallMap[y][x].sprite);
+            wallMap[y][x].sprite = null;
+        }
         if (floorMap?.[y]?.[x]?.sprite) {
             container.removeChild(floorMap[y][x].sprite);
             floorMap[y][x].sprite = null;
@@ -1361,21 +1434,15 @@ function createFloor(x, y) {
 }
 
 function createWall(x, y) {
-    createSprite(x, y, {x: 16, y: 7}, floorMap, 177); // footprint
-    createSprite(x, y - 1, {x: 16, y: 7}, wallMap, 177); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
-}
-
-function createDoor(x, y) {
-    createSprite(x, y, {x: 10, y: 7}, floorMap, 177); // footprint
-    createSprite(x, y - 1, {x: 11, y: 7}, wallMap, 177); // middle
-    createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
+    createSprite(x, y, {x: 22, y: 8}, floorMap, 177); // footprint
+    createSprite(x, y - 1, {x: 22, y: 8}, wallMap, 177); // middle
+    createSprite(x, y - 2, {x: 21, y: 8}, wallMap, 131); // top
 }
 
 function createVerticalWall(x, y) {
     if (wallMap[y][x] !== 131 && wallMap[y][x] !== 177){
-        createSprite(x, y, {x: 16, y: 5}, floorMap, 177); // footprint
-        createSprite(x, y - 1, {x: 16, y: 5}, wallMap, 177); // middle
+        createSprite(x, y, {x: 22, y: 8}, floorMap, 177); // footprint
+        createSprite(x, y - 1, {x: 22, y: 8}, wallMap, 177); // middle
     }
     createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
 }
@@ -1384,8 +1451,8 @@ function createVerticalWall(x, y) {
 // dungeon generator
 function dungeonGeneration() {
     // Use rot.js to create a uniform dungeon map
-    const dungeon = new ROT.Map.Uniform(MAP_WIDTH, MAP_HEIGHT);
-
+    dungeon = new ROT.Map.Uniform(MAP_WIDTH, MAP_HEIGHT);
+    
     // This callback function will be executed for every generated map cell
     const callback = (x, y, value) => {
         if (value === 0) {
@@ -1398,6 +1465,25 @@ function dungeonGeneration() {
     };
     
     dungeon.create(callback);
+    
+}
+
+async function addDoors() {
+    // Fetch colors.json and store the colors array
+    const response = await fetch('./assets/colors.json');
+    const data = await response.json();
+    const colors = data.colors;
+
+    const rooms = dungeon.getRooms();
+    for (let i = 0; i < rooms.length; i++) {
+        const room = rooms[i];
+        room.getDoors((x, y) => {
+            const colorIndex = Math.floor(Math.random() * colors.length); // Get a random color for the door
+            // Convert the hexadecimal color value to a number
+            const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
+            new Door(i, x, y, colorValue);
+        });
+    }
 }
 
 function addFloorsAndVoid() {
@@ -1594,6 +1680,7 @@ function addBaseAndShadows() {
 
 function evaluateMapAndCreateWalls() {
     // Loop through each row
+    addDoors(dungeon);
     for (let y = 0; y < MAP_HEIGHT; y++) {
         // Loop through each column
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -1624,6 +1711,7 @@ function evaluateMapAndCreateWalls() {
             }
         }
     }
+    
 }
 
 /// UI functions
@@ -1720,7 +1808,7 @@ class UIBox {
         return { x: spriteColumn, y: spriteRow };
     }
     showUIContainer() {
-        console.log("I thought I turned on the UI Mask");
+        //console.log("I thought I turned on the UI Mask");
         createjs.Tween.get(uiMaskContainer).to({alpha: 1}, 100) // fade in
         .call(() => {
             uiContainerShown = true;
@@ -1831,7 +1919,7 @@ class UIBox {
 function setup() {
     dungeonGeneration();
     addFloorsAndVoid();
-    evaluateMapAndCreateWalls(floorMap);
+    evaluateMapAndCreateWalls();
     addBaseAndShadows();
 
 
