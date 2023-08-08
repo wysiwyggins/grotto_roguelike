@@ -279,6 +279,16 @@ class Player {
                 this.attemptingFireEntry = false;
                 this.fireEntryDirection = null;
             }
+            let door = Door.totalDoors().find(door => door.x === newTileX && door.y === newTileY);
+            if (door) {
+                if (!door.isLocked) {
+                    door.open();
+                } else {
+                    this.messageList.addMessage("The door is locked!");
+                    return; // Don't move if door is locked
+                }
+            }
+
             let item = objectMap[newTileY][newTileX]?.item;
             if (item) {
                 this.pickUpItem(item, newTileX, newTileY);
@@ -495,11 +505,6 @@ class Player {
         
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
-
-            // this was going to fade the background of the messagebox out until a new message popped up, but it got tricky and was disabled
-            /* if (uiContainerShown && !this.attemptingFireEntry) {
-                this.messageList.hideUIContainer();
-            } */
         }
     }
 
@@ -1225,71 +1230,126 @@ class Item {
 }
 
 class Door {
+    static allDoors = [];
     constructor(id, x, y, colorValue, isLocked = false) {
         this.id = id;
         this.x = x;
         this.y = y;
         this.colorValue = colorValue;
         this.isLocked = isLocked;
+        this.isOpen = false;
         this.sprites = []; // This will hold the three parts of the door
-
         this.createDoor();
+        Door.allDoors.push(this);
     }
-  
-    createDoor() {
-        const spriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}]; 
 
-        // Create footprint on the floor map
-        createSprite(this.x, this.y, spriteIndices[0], floorMap, this.isLocked ? 101 : 100);
-        this.sprites.push(floorMap[this.y][this.x].sprite);
-        
-        // Create middle and top parts on the wall map
-        for(let i = 1; i < spriteIndices.length; i++) {
-            if (wallMap[this.y - i][this.x].value != 131){
-                createSprite(this.x, this.y - i, spriteIndices[i], wallMap, 177);
-                let sprite = wallMap[this.y - i][this.x].sprite;
-                this.sprites.push(sprite);
-            }
-            
-        }
-        
-        // Apply color tint
-        this.sprites.forEach(sprite => sprite.tint = this.colorValue);
+    static totalDoors() {
+        //return Door.allDoors.length;
+        return Door.allDoors;
     }
-  
+
+    createDoor() {
+        const closedSpriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}];
+        const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 13, y: 8}];
+
+        const spriteIndices = this.isOpen ? openSpriteIndices : closedSpriteIndices;
+
+        // Create door parts on the object map
+        for (let i = 0; i < spriteIndices.length; i++) {
+            createSprite(this.x, this.y - i, spriteIndices[i], objectMap, this.isLocked ? 101 : 100);
+            let sprite = objectMap[this.y - i][this.x].sprite;
+            this.sprites.push(sprite);
+
+            // Interactivity
+            sprite.interactive = true;
+            sprite.on('mouseover', () => {
+                messageList.hideBox(); 
+                this.showInspectorInfo();
+                inspector.showBox();  
+                inspector.render();  
+            });
+
+            sprite.on('mouseout', () => {
+                inspector.hideBox();
+                messageList.showBox();
+            });
+
+            sprite.on('click', () => {
+                if (this.isAdjacentToPlayer()) { // You'd need a function to check if the player is adjacent
+                    this.toggleDoor();
+                }
+            });
+        }
+
+        // Apply color tint
+        if (this.isLocked) {
+            this.sprites.forEach(sprite => sprite.tint = this.colorValue);
+        }
+    }
+
     lock() {
         this.isLocked = true;
-        floorMap[this.y][this.x].value = 101; // Update the footprint value to represent locked door
+        this.updateDoorStateInMap(101); // Update the object map value to represent locked door
     }
-  
+
     unlock() {
         if (this.isLocked) {
             this.isLocked = false;
-            floorMap[this.y][this.x].value = 100; // Update the footprint value to represent open door
+            this.updateDoorStateInMap(100); // Update the object map value to represent unlocked door
             this.open();
         }
     }
-  
-    isLocked() {
+
+    isDoorLocked() {
         return this.isLocked;
     }
-  
+
     canUnlock(key) {
         return key.id === this.id;
     }
-  
+
     open() {
-        if (!this.isLocked) {
-            this.sprites.forEach(sprite => {
-                gameContainer.removeChild(sprite);
-            });
-            this.sprites = [];
-            floorMap[this.y][this.x].value = null; // Remove the footprint of the door from the floor map
-            for(let i = 1; i < 3; i++) { // Remove the middle and top parts of the door from the wall map
-                wallMap[this.y - i][this.x].value = null;
-            }
+        if (!this.isLocked && !this.isOpen) {
+            const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 13, y: 8}];
+            this.updateSprites(openSpriteIndices);
+            this.isOpen = true;
         }
     }
+
+    close() {
+        if (!this.isLocked && this.isOpen) {
+            const closedSpriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}];
+            this.updateSprites(closedSpriteIndices);
+            this.isOpen = false;
+        }
+    }
+
+    updateSprites(spriteIndices) {
+        for (let i = 0; i < this.sprites.length; i++) {
+            this.sprites[i].texture = getTextureFromIndices(spriteIndices[i]);
+        }
+    }
+
+    updateDoorStateInMap(value) {
+        for (let i = 0; i < 3; i++) {
+            objectMap[this.y - i][this.x].value = value;
+        }
+    }
+
+    showInspectorInfo() {
+        inspector.clearMessages();
+        if(this.isOpen) {
+            inspector.addMessage("Close door?");
+        } else {
+            if (this.isLocked) {
+                inspector.addMessage(`${this.name}`);
+            }   else {
+                inspector.addMessage(`Door`);
+            }
+            inspector.addMessage(`Status: ${this.isLocked ? "Locked" : "Unlocked"}`);
+        }
+    }
+
 }
 
 
@@ -1327,6 +1387,16 @@ function checkGameState() {
             }
         }
     }
+}
+
+function getTextureFromIndices(index) {
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        index.x * TILE_WIDTH,
+        index.y * TILE_HEIGHT,
+        TILE_WIDTH, TILE_HEIGHT));
+
+    return texture;
 }
 
 function createSprite(x, y, index, layer, value = null) {
