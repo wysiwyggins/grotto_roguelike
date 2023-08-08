@@ -282,6 +282,7 @@ class Player {
             let door = Door.totalDoors().find(door => door.x === newTileX && door.y === newTileY);
             if (door) {
                 if (!door.isLocked) {
+                    messageList.addMessage("You open the door.");
                     door.open();
                 } else {
                     this.messageList.addMessage("The door is locked!");
@@ -337,10 +338,15 @@ class Player {
             for (let dx = -1; dx <= 1; dx++) {
                 let y = this.y + dy;
                 let x = this.x + dx;
-                if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) {
+                //iterate over a 3x3 block of tiles around the player
+                if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) { //check for an occluding wall with floor behind it
                     createFloor(x,y);
                     wallMap[y][x].sprite.alpha = 0.2;
+                } else if (wallMap[y]?.[x]?.sprite) { //for walls with no floor underneath that could occlude the player's sprite
+                    wallMap[y][x].sprite.alpha = 0.2;
+                    createSprite(x, y, {x: 16, y: 5}, backgroundMap, 216);
                 }
+
                 if (uiMaskMap[y]?.[x]?.sprite) {
                     uiMaskMap[y][x].sprite.alpha = 0.2;
                 }
@@ -603,7 +609,7 @@ function createPlayerSprite(player) {
         TILE_WIDTH, TILE_HEIGHT));
     let spriteFootprint = new PIXI.Sprite(footprintTexture);
     spriteFootprint.scale.set(SCALE_FACTOR);
-    spriteFootprint.zIndex = 2;
+    spriteFootprint.zIndex = 2.3;
 
     let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         player.headPosition.x * TILE_WIDTH, 
@@ -611,7 +617,7 @@ function createPlayerSprite(player) {
         TILE_WIDTH, TILE_HEIGHT));
     let spriteOverlay = new PIXI.Sprite(overlayTexture);
     spriteOverlay.scale.set(SCALE_FACTOR);
-    spriteOverlay.zIndex = 2;
+    spriteOverlay.zIndex = 2.3;
 
     spriteFootprint.x = player.x * TILE_WIDTH * SCALE_FACTOR;
     spriteFootprint.y = player.y * TILE_HEIGHT * SCALE_FACTOR;
@@ -1250,7 +1256,7 @@ class Door {
 
     createDoor() {
         const closedSpriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}];
-        const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 13, y: 8}];
+        const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
 
         const spriteIndices = this.isOpen ? openSpriteIndices : closedSpriteIndices;
 
@@ -1310,7 +1316,7 @@ class Door {
 
     open() {
         if (!this.isLocked && !this.isOpen) {
-            const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 13, y: 8}];
+            const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
             this.updateSprites(openSpriteIndices);
             this.isOpen = true;
         }
@@ -1325,10 +1331,10 @@ class Door {
     }
 
     updateSprites(spriteIndices) {
-        for (let i = 0; i < this.sprites.length; i++) {
-            this.sprites[i].texture = getTextureFromIndices(spriteIndices[i]);
-        }
+    for (let i = 0; i < this.sprites.length; i++) {
+        this.sprites[i].texture = getTextureFromIndices(spriteIndices[i]);
     }
+}
 
     updateDoorStateInMap(value) {
         for (let i = 0; i < 3; i++) {
