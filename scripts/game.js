@@ -509,7 +509,12 @@ class Player {
             }
         }
     }
-    
+    removeItem(item) {
+        const index = this.inventory.indexOf(item);
+        if (index !== -1) {
+            this.inventory.splice(index, 1);
+        }
+    }
     isAdjacentTo(x, y) {
         return Math.abs(this.x - x) <= 1 && Math.abs(this.y - y) <= 1;
     }
@@ -1278,25 +1283,34 @@ let CanBePickedUp = {
 
 const ItemType = Object.freeze({
     "FOOD": 0,
-    "WEAPON": 1,
+    "BOW": 1,
+    "KEY": 2
 });
 
 class Item {
-    constructor(type, x, y) {
+    constructor(type, x, y, id, colorValue) {
         this.x = x;
         this.y = y;
+        this.colorValue = colorValue;
+        this.id = id;
+        this._tileIndex = {x: 17, y: 2};
 
         switch (type) {
-            case ItemType.WEAPON:
+            case ItemType.BOW:
                 this._name = 'Bow';
                 this._type = type;
                 this._tileIndex = {x: 13, y: 0};  // the tile indices on the spritesheet for the Bow
                 this._objectNumber = 100;
                 break;
-            // Add more cases here for other types of items
+            case ItemType.KEY:
+                this._name = `${id} Key`;
+                this._type = type;
+                this._tileIndex = {x: 10, y: 0};
+                this._objectNumber = 105;  // Assuming 105 as the objectNumber for keys
+                this.id = id; // The key's unique identifier
+                this.colorValue = colorValue; // The key's color value
+                break;
         }
-
-        // Create texture and sprite based on the tile index
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         this.spriteTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
             this._tileIndex.x * TILE_WIDTH, 
@@ -1305,6 +1319,10 @@ class Item {
             TILE_HEIGHT
         ));
         this.sprite = new PIXI.Sprite(this.spriteTexture);
+
+        if (type === ItemType.KEY) {
+            this.sprite.tint = this.colorValue;
+        }
 
         // Set position, scale, and zIndex of the sprite
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);
@@ -1380,6 +1398,19 @@ class Door {
 
             sprite.on('click', () => {
                 if (player && player.isAdjacentTo(this.x, this.y)) {
+                    // Check if door is locked and if player has the right key
+                    if (this.isLocked) {
+                        const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === this.id);
+                        if (keyItem) {
+                            this.unlock();
+                            player.removeItem(keyItem); // Assuming the Player class has a removeItem method
+                            messageList.addMessage(`You unlocked the ${this.name} door with your key.`);
+                        } else {
+                            // Player doesn't have the right key
+                            messageList.addMessage(`The ${this.name} door is locked.`);
+                            return;
+                        }
+                    }
                     this.toggleDoor();
                 } else if (player) {
                     let adjacentPosition = player.getAdjacentPosition(this.x, this.y);
@@ -1663,15 +1694,44 @@ async function addDoors() {
     const colors = data.colors;
 
     const rooms = dungeon.getRooms();
+    const treasureRoomIndex = Math.floor(Math.random() * rooms.length);
+    const treasureRoom = rooms[treasureRoomIndex];
+
+    treasureRoom.getDoors((x, y) => {
+        const colorIndex = Math.floor(Math.random() * colors.length); 
+        const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
+        let door = new Door(treasureRoomIndex, x, y, colorValue, true);  // Locked door
+        placeKeyForDoor(door, colors[colorIndex].name);  // Add a key for this door
+    });
+
     for (let i = 0; i < rooms.length; i++) {
-        const room = rooms[i];
-        room.getDoors((x, y) => {
-            const colorIndex = Math.floor(Math.random() * colors.length); // Get a random color for the door
-            // Convert the hexadecimal color value to a number
-            const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
-            new Door(i, x, y, colorValue);
-        });
+        if (i !== treasureRoomIndex) {  // Skip the treasure room
+            const room = rooms[i];
+            room.getDoors((x, y) => {
+                if (Math.random() >= 0.5) {  // 50% chance for a door
+                    const colorIndex = Math.floor(Math.random() * colors.length); 
+                    const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
+                    new Door(i, x, y, colorValue);  // Unlocked door
+                }
+            });
+        }
     }
+}
+
+function placeKeyForDoor(door, doorName) {
+    let walkableTiles = [];
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            if (floorMap[y][x].value === 157) {
+                walkableTiles.push({x: x, y: y});
+            }
+        }
+    }
+    let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+
+    let keyName = `${doorName} key`;
+    new Item(ItemType.KEY, randomTile.x, randomTile.y, door.id, door.colorValue);
+
 }
 
 function addFloorsAndVoid() {
@@ -2149,8 +2209,7 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
-        let bow = new Item(ItemType.WEAPON,randomTile3.x, randomTile3.y)
-        let bow2 = new Item(ItemType.WEAPON,randomTile4.x, randomTile4.y)
+        new Item(ItemType.BOW,randomTile.x, randomTile.y, '0xFFFFFF', 1);
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
