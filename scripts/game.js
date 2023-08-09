@@ -2209,7 +2209,7 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
-        new Item(ItemType.BOW,randomTile.x, randomTile.y, '0xFFFFFF', 1);
+        new Item(ItemType.BOW,randomTile2.x, randomTile2.y, '0xFFFFFF', 1);
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
