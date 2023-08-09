@@ -7,17 +7,26 @@ let app = new PIXI.Application({
     autoDensity: true
 });
 
-
 app.stage.sortableChildren = true;
+// pixi uses this to switch zIndex layering within one of it's containers
+
 let uiContainer = new PIXI.Container();
 let uiContainerShown = true;
 let uiMaskContainer = new PIXI.Container();
 let gameContainer = new PIXI.Container();
+
+//I've currently only got three pixi containers to render sprites to the screen,
+//gameContainer has the game stage, uiMask is a translucent white background for UIBoxes
+//and uiContainer has the uiBox borders and content
+
 app.stage.addChild(gameContainer);
 gameContainer.sortableChildren = true;
 app.stage.addChild(uiMaskContainer);
 app.stage.addChild(uiContainer);
 
+//adding a global stub for the player. This kind of precludes fun things like multiple players, but oh well
+// there is an array of players still from when I thought I'd have multiple players
+let player = null;
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
 
@@ -31,15 +40,26 @@ const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
 const SPRITESHEET_COLUMNS = 23;
 const SPRITESHEET_ROWS = 11;
-
+//dungeon is used by rot.js' dungeon drawing functions, we need a global stub to get things like
+//door locations
 let dungeon = null;
 //console.log('Initializing maps');
+// maps are arrays that I am using really messily. they have a value which is a number
+// that started out as the number of the tile being displayed, but I also use it for game logic
+//like pathfinding. they can also hold a sprite for easily accessing the sprite objects that are being displayed
+// in the pixi containers. THey also allow me to have 'layers' without having a bunch more pixi containers.
 let backgroundMap = createEmptyMap();
+//background is the black void and the shadows that make the rooms look like towers in the dark
 let floorMap = createEmptyMap();
+//floor is used for pathfinding, it also includes the 'footprint' tiles of walls, since those are used for pathfinding
 let objectMap = createEmptyMap();
+//items, but also fire, smoke and doors
 let wallMap = createEmptyMap();
+// the height of walls, (their middle and top tiles)
 let uiMaskMap = createEmptyMap();
+// the background of uiboxes
 let uiMap = createEmptyMap();
+// the content of uiboxes
 
 let engine;
 let gameOver = false;
@@ -47,13 +67,12 @@ var players = [];
 let activeEntities = [];
 var messageList;
 var inspector;
+
+//ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
 
-/* app.ticker.add((delta) => {
-    // game loop code here
-    createjs.Tween.update(); // Update CreateJS tweens
-}); */
+//initialize each of the map arrays
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -64,6 +83,8 @@ function createEmptyMap() {
     }
     return map;
 }
+
+//loading animated sprite tiles for fire and smoke
 
 let fireFrames = [];
 let smokeFrames = [];
@@ -89,6 +110,8 @@ PIXI.Loader.shared.onComplete.add(() => {
 });
 console.log(smokeFrames);
 
+// there are different player sprites for PLayerTypes, not yet used, might be removed
+
 const PlayerType = Object.freeze({
     "HUMAN": 0,
     "ANIMAL": 1,
@@ -111,15 +134,20 @@ class Player {
         this.y = y;
         this.prevX = null;
         this.prevY = null;
+        //players are made of two tiles, a head and feet, they also have some shadow tiles
+        //that do complex stuff to show or hide on walls and floors
         this.footprintTile;
         this.headTile;
         this.sprite = {}; 
+        this.range = 10;
+        //we want to warn the player if they are about to step in fire
         this.attemptingFireEntry = false;
         this.fireEntryDirection = null;
         this.headShadowTile = {x: 14, y: 9};
         this.footShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
         this.footShadowTile.zIndex = 1.5;
+        //scheduler decides when monsters and players take their turns
         this.scheduler = scheduler;
         this.engine = engine;
         this.messageList = messageList;
@@ -132,7 +160,7 @@ class Player {
             this.handleClick(event);
         });
         // stats
-        this.blood = 100;
+        this.blood = 100; //health
         this.isBurning = false;
         this.burningTurns = 0;
         this.inventory = [];
@@ -181,6 +209,8 @@ class Player {
                 break;
         }
     }
+    // check to see if anyone is still alive. When the player is dead the game goes into zero
+    // player mode
     static checkLivingPlayers() {
         for (let player of players) {
             if (!player.isDead) {
@@ -189,7 +219,27 @@ class Player {
         }
         return false;
     }
+    canSeeMonster(monsters) {
+        for (let monster of monsters) {
+            let dx = this.x - monster.x;
+            let dy = this.y - monster.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
     
+            if (distance <= this.range) {  // Use the player's vision range
+                let lineToMonster = line({x: this.x, y: this.y}, {x: monster.x, y: monster.y});
+                let seen = true;
+                for (let point of lineToMonster) {
+                    let x = point.x;
+                    let y = point.y;
+                    if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
+                        seen = false;
+                    }
+                }
+                if (seen) return true;
+            }
+        }
+        return false;
+    }
     handleClick(event) {
         // prevent default behavior of the event
         event.preventDefault();
@@ -204,6 +254,7 @@ class Player {
             this.moveTo(x, y);
         }
     }    
+    //moving with arrow keys
     move(direction) {
         // Store previous position
         console.log('Player is taking turn...');
@@ -361,6 +412,7 @@ class Player {
 
 
     }
+    //we don't want implicit steps to be taken instantly, we want to see them
     delayedMove(direction, delay) {
         return new Promise(resolve => {
             setTimeout(() => {
@@ -370,6 +422,7 @@ class Player {
             }, delay);
         });
     }
+    //moveTo implicitly takes turns when the player clicks on a distant spot that can be walked to
     async moveTo(targetX, targetY) {
         if (targetX === this.x && targetY === this.y) return;
 
@@ -401,7 +454,13 @@ class Player {
     
         for (let point of path) {
             let { x, y } = point;
-    
+            if (this.isDead) {
+                break;
+            }
+            if (this.canSeeMonster(allMonsters)) { 
+                this.messageList.addMessage("You see a monster!");
+                break;
+            }
             let direction;
             if (x < this.x && y < this.y) {
                 direction = 'up-left';
@@ -426,7 +485,10 @@ class Player {
             let oldY = this.y;
     
             await this.delayedMove(direction, 200);  // 200ms delay
-    
+            let door = Door.allDoors.find(door => door.x === x && door.y === y && !door.isLocked);
+            if (door) {
+                door.open();
+            }
             // After each move, check if the position has changed
             if (this.x === oldX && this.y === oldY) {
                 // Increase the stuckCounter if the position hasn't changed
@@ -448,7 +510,19 @@ class Player {
         }
     }
     
+    isAdjacentTo(x, y) {
+        return Math.abs(this.x - x) <= 1 && Math.abs(this.y - y) <= 1;
+    }
+
+    getAdjacentPosition(targetX, targetY) {
+        let diffX = this.x - targetX;
+        let diffY = this.y - targetY;
     
+        if (diffX !== 0) diffX = diffX > 0 ? 1 : -1;
+        if (diffY !== 0) diffY = diffY > 0 ? 1 : -1;
+    
+        return { x: targetX + diffX, y: targetY + diffY };
+    }
 
     handleKeydown(event) {
         if (this.isDead) return;  
@@ -708,6 +782,7 @@ const Attacks = {
 }
 
 class Monster {
+    static allMonsters = [];
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.name = null;
         console.log("ROAR");
@@ -803,10 +878,30 @@ class Monster {
                 };
                 this.moveRandomly = function() {
                     let adjacentTiles = this.getAdjacentTiles();
+                
+                    // Filter out tiles that have a locked door.
+                    adjacentTiles = adjacentTiles.filter(tile => {
+                        let doorOnTile = Door.allDoors.find(door => door.x === tile.x && door.y === tile.y);
+                        if (doorOnTile) {
+                            if (doorOnTile.isLocked) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+                
                     if(adjacentTiles.length > 0) {
                         let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
                         this.x = randomTile.x;
                         this.y = randomTile.y;
+                
+                        // Open any unlocked door on the tile.
+                        let doorOnTile = Door.allDoors.find(door => door.x === this.x && door.y === this.y);
+                        if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
+                            doorOnTile.open();
+                            messageList.addMessage("You hear a crashing noise.");
+                        }
+                
                         this.updateSpritePosition();
                     }
                 };
@@ -888,6 +983,8 @@ class Monster {
                 }
             }
         }
+
+        Monster.allMonsters.push(this);
         
     }
     printStats() {
@@ -1008,6 +1105,7 @@ function createMonsterSprite(monster) {
 
 }
 
+//this is for tinting fire
 function generateColorVariation(color, variation) {
     let baseColor = parseInt(color.slice(2), 16); // Convert to base 16 integer
     let maxColor = 0xFFAA33;
@@ -1095,7 +1193,7 @@ class Fire {
                 // Check if the new spot is valid and not already on fire
                 if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
                     floorMap[newY][newX].value === 157 && 
-                    (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300)) {
+                    (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300 && objectMap[newY][newX].value !== 100)) {
                 
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
                     objectMap[newY][newX].value = 300;
@@ -1281,8 +1379,14 @@ class Door {
             });
 
             sprite.on('click', () => {
-                if (this.isAdjacentToPlayer()) { // You'd need a function to check if the player is adjacent
+                if (player && player.isAdjacentTo(this.x, this.y)) {
                     this.toggleDoor();
+                } else if (player) {
+                    let adjacentPosition = player.getAdjacentPosition(this.x, this.y);
+                    player.moveTo(adjacentPosition.x, adjacentPosition.y).then(() => {
+                        // Once the player has moved adjacent to the door, toggle it
+                        this.toggleDoor();
+                    });
                 }
             });
         }
@@ -1313,7 +1417,15 @@ class Door {
     canUnlock(key) {
         return key.id === this.id;
     }
-
+    toggleDoor() {
+        if (this.isOpen) {
+            this.close();
+            messageList.addMessage("You close a door.")
+        } else {
+            this.open();
+            messageList.addMessage("You open a door.")
+        }
+    }
     open() {
         if (!this.isLocked && !this.isOpen) {
             const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
@@ -1331,10 +1443,10 @@ class Door {
     }
 
     updateSprites(spriteIndices) {
-    for (let i = 0; i < this.sprites.length; i++) {
-        this.sprites[i].texture = getTextureFromIndices(spriteIndices[i]);
+        for (let i = 0; i < this.sprites.length; i++) {
+            this.sprites[i].texture = getTextureFromIndices(spriteIndices[i]);
+        }
     }
-}
 
     updateDoorStateInMap(value) {
         for (let i = 0; i < 3; i++) {
@@ -2030,7 +2142,7 @@ function setup() {
 
         let scheduler = new ROT.Scheduler.Simple();
         engine = new ROT.Engine(scheduler);
-        let player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList, inspector);
+        player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList, inspector);
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
