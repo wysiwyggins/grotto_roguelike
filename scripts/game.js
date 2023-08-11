@@ -1288,7 +1288,7 @@ const ItemType = Object.freeze({
 });
 
 class Item {
-    constructor(type, x, y, id, colorValue) {
+    constructor(type, x, y, id, colorValue, name) {
         this.x = x;
         this.y = y;
         this.colorValue = colorValue;
@@ -1303,7 +1303,7 @@ class Item {
                 this._objectNumber = 100;
                 break;
             case ItemType.KEY:
-                this._name = `${id} Key`;
+                this._name = `${name} Key`;
                 this._type = type;
                 this._tileIndex = {x: 10, y: 0};
                 this._objectNumber = 105;  // Assuming 105 as the objectNumber for keys
@@ -1351,6 +1351,11 @@ class Item {
     }
 }
 
+function capitalizeFirstLetter(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+
 class Door {
     static allDoors = [];
     constructor(id, x, y, colorValue, isLocked = false) {
@@ -1358,6 +1363,7 @@ class Door {
         this.x = x;
         this.y = y;
         this.colorValue = colorValue;
+        this.name = ''; 
         this.isLocked = isLocked;
         this.isOpen = false;
         this.sprites = []; // This will hold the three parts of the door
@@ -1701,6 +1707,7 @@ async function addDoors() {
         const colorIndex = Math.floor(Math.random() * colors.length); 
         const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
         let door = new Door(treasureRoomIndex, x, y, colorValue, true);  // Locked door
+        door.name = capitalizeFirstLetter(colors[colorIndex].color) + " door";
         placeKeyForDoor(door, colors[colorIndex].name);  // Add a key for this door
     });
 
@@ -1730,7 +1737,7 @@ function placeKeyForDoor(door, doorName) {
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
     let keyName = `${doorName} key`;
-    new Item(ItemType.KEY, randomTile.x, randomTile.y, door.id, door.colorValue);
+    new Item(ItemType.KEY, randomTile.x, randomTile.y, door.id, door.colorValue, keyName);
 
 }
 
