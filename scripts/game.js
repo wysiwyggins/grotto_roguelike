@@ -1308,7 +1308,7 @@ class Item {
         this.colorValue = colorValue;
         this.id = id;
         this._tileIndex = {x: 17, y: 2};
-
+        this.isFlammable = false;
         switch (type) {
             case ItemType.BOW:
                 this._name = 'Bow';
@@ -1333,7 +1333,13 @@ class Item {
             TILE_HEIGHT
         ));
         this.sprite = new PIXI.Sprite(this.spriteTexture);
-
+        this.sprite.interactive = true;
+        this.sprite.on('mouseover', () => {
+            messageList.hideBox(); 
+            this.showInspectorInfo();
+            inspector.showBox();  
+            inspector.render();  
+        });
         if (type === ItemType.KEY) {
             this.sprite.tint = this.colorValue;
         }
@@ -1362,6 +1368,12 @@ class Item {
 
     get tile() {
         return this._tile;
+    }
+
+    showInspectorInfo() {
+        inspector.clearMessages();
+        inspector.addMessage(`${this.name}`);
+        
     }
 }
 
@@ -2208,7 +2220,7 @@ function setup() {
     let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
-    inspector = new UIBox([], 20, 10, true);
+    inspector = new UIBox([], 30, 10, true);
 
     // And handle them individually
     messageList.showBox();
