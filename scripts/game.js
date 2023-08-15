@@ -1149,6 +1149,7 @@ class Fire {
         activeEntities.push(this);
         this.x = x;
         this.y = y;
+        this.name = "Fire";
         this.scheduler = scheduler;
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
         this.color = color;
@@ -1167,7 +1168,17 @@ class Fire {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
-
+        this.sprite.interactive = true;
+        this.sprite.on('mouseover', () => {
+            messageList.hideBox(); 
+            this.showInspectorInfo();
+            inspector.showBox();  
+            inspector.render();  
+        });
+        this.sprite.on('mouseout', () => {
+            inspector.hideBox();
+            messageList.showBox();
+        });
         let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
 
         this.tween = new createjs.Tween.get(this.sprite)
@@ -1180,7 +1191,12 @@ class Fire {
             .call(() => {
                 this.tween.gotoAndPlay(0); // Restart the animation from the beginning
             });
+        
     }
+    showInspectorInfo() {
+        inspector.clearMessages();
+        inspector.addMessage(`${this.name}`); 
+    };
 
     act() {
         //createjs.Tween.tick();
@@ -1249,12 +1265,12 @@ class Fire {
 
 class Smoke {
     constructor(x, y, scheduler) {
-        console.log("Creating smoke")
+        //console.log("Creating smoke")
         activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
-        
+        this.name = "Smoke";
         this.sprite = new PIXI.AnimatedSprite(smokeFrames); // Replace fireFrames with smokeFrames
         this.sprite.animationSpeed = 0.1;
         this.sprite.loop = true;
@@ -1264,8 +1280,24 @@ class Smoke {
         this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
         gameContainer.addChild(this.sprite);
         objectMap[this.y][this.x] = 400;
+        this.sprite.interactive = true;
+        this.sprite.on('mouseover', () => {
+            messageList.hideBox(); 
+            this.showInspectorInfo();
+            inspector.showBox();  
+            inspector.render();  
+        });
+        this.sprite.on('mouseout', () => {
+            inspector.hideBox();
+            messageList.showBox();
+        });
+        
     }
 
+    showInspectorInfo() {
+        inspector.clearMessages();
+        inspector.addMessage(`${this.name}`);
+    }
     act() {
         // 50% chance to disappear
         if (Math.random() < 0.5) {
@@ -1339,6 +1371,10 @@ class Item {
             this.showInspectorInfo();
             inspector.showBox();  
             inspector.render();  
+        });
+        this.sprite.on('mouseout', () => {
+            inspector.hideBox();
+            messageList.showBox();
         });
         if (type === ItemType.KEY) {
             this.sprite.tint = this.colorValue;
