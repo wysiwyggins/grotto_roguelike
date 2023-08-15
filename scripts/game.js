@@ -10,6 +10,7 @@ let app = new PIXI.Application({
 app.stage.sortableChildren = true;
 // pixi uses this to switch zIndex layering within one of it's containers
 
+let overlayContainer = new PIXI.Container();
 let uiContainer = new PIXI.Container();
 let uiContainerShown = true;
 let uiMaskContainer = new PIXI.Container();
@@ -23,6 +24,11 @@ app.stage.addChild(gameContainer);
 gameContainer.sortableChildren = true;
 app.stage.addChild(uiMaskContainer);
 app.stage.addChild(uiContainer);
+app.stage.addChild(overlayContainer);
+let cursor = new Cursor();
+gameContainer.on('mousemove', (event) => {
+    cursor.onMouseMove(event.data.global.x, event.data.global.y);
+});
 
 //adding a global stub for the player. This kind of precludes fun things like multiple players, but oh well
 // there is an array of players still from when I thought I'd have multiple players
@@ -60,6 +66,8 @@ let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
 // the content of uiboxes
+let overlayMap = createEmptyMap();
+//the cursor highlight and other overlays like targeting
 
 let engine;
 let gameOver = false;
@@ -138,6 +146,421 @@ const PlayerType = Object.freeze({
     "VEGETABLE": 8
     
 });
+
+
+class Cursor {
+    constructor() {
+        // Initializing cursor properties
+        this.x = 0;
+        this.y = 0;
+        this.selectedSprite = null;
+    }
+
+    updatePosition(mouseX, mouseY) {
+        // Calculate tile coordinates from mouse position
+        this.x = Math.floor(mouseX / (TILE_WIDTH * SCALE_FACTOR));
+        this.y = Math.floor(mouseY / (TILE_HEIGHT * SCALE_FACTOR));
+
+        // Update the highlighted tile
+        this.highlightTile();
+    }
+
+    highlightTile() {
+        // Remove previous highlighted sprite if it exists
+        if (this.selectedSprite) {
+            overlayContainer.removeChild(this.selectedSprite);
+            this.selectedSprite = null;
+        }
+
+        // Use the createSprite function to create a new highlighted tile on the uiMaskMap layer
+        // Assuming you have a separate tile (e.g. a semi-transparent white tile) for highlighting
+        let highlightTileIndex = {x: 11, y: 10}; // Replace with appropriate indices
+        this.selectedSprite = createSprite(this.x, this.y, highlightTileIndex, overlayMap);
+        if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) { //check for an occluding wall with a floor behind it and make it transparent;
+            wallMap[y][x].sprite.alpha = 0.2;
+        }
+    }
+
+    inspectTile() {
+        if (objectMap[this.y] && objectMap[this.y][this.x]) {
+            let objectData = objectMap[this.y][this.x];
+            if (objectData && objectData.item) {
+                // Clear previous messages in inspector
+                inspector.clearMessages();
+
+                // Check for displayInfo and show it in inspector
+                if (objectData.item.displayInfo) {
+                    inspector.addMessage(objectData.item.displayInfo);
+                }
+
+                // Display inspector UI box
+                inspector.showBox();
+                inspector.render();
+            }
+        } else {
+            // Hide inspector if no objects on tile
+            inspector.hideBox();
+        }
+    }
+
+    onMouseMove(mouseX, mouseY) {
+        this.updatePosition(mouseX, mouseY);
+        this.inspectTile();
+    }
+}
+
+
+
+const MonsterType = Object.freeze({
+    "BASILISK": 0,
+    "CHIMERA": 1,
+});
+
+
+const Attacks = {
+    FIREBREATH: function(monster, target) {
+        target.isBurning = true;
+        let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
+        let fire1 = new Fire(target.x, target.y, monster.scheduler, '0xFF0000');//one fire directly on the player
+        monster.scheduler.add(fire1, true);
+        while (fireTilesCount-- > 0) {
+            let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
+            let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
+            let newX = target.x + dx;
+            let newY = target.y + dy;
+            if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
+                let fire = new Fire(newX, newY, monster.scheduler, '0xFF0000');
+                monster.scheduler.add(fire, true);
+            }
+        }
+        messageList.addMessage("The {0} breathes flames!", [monster.name]);
+    },
+    // Add other attacks here
+}
+
+class Monster {
+    static allMonsters = [];
+    constructor(type, x, y, scheduler, engine, messageList, inspector) {
+        this.name = null;
+        console.log("ROAR");
+        this.isDead = false;
+        this.upright = true;
+        this.type = type;
+        this.x = x;
+        this.y = y;
+        this.prevX = null;
+        this.prevY = null;
+        this.sprite = {}; 
+        this.fireproof;
+        this.secondShadowTile = {x: 14, y: 9};
+        this.firstShadowTile = {x: 8, y: 6};
+        this.sprite.shadow = null;
+        this.firstShadowTile.zIndex = 1.5;
+        this.scheduler = scheduler;
+        this.engine = engine;
+        this.messageList = messageList;
+        this.inspector = inspector;
+        this.blood = 100;
+        this.isBurning = false;
+        this.burningTurns = 0;
+        this.speed = 1;
+        this.actFrequency = 1;
+
+        this.name = ""; // To be set by a monster-specific code.
+        this.description = ""; // To be set by a monster-specific code.
+
+        // An array of attacks a monster can perform. Can be set by a monster-specific code.
+        this.attacks = []; 
+        this.spriteFlip = {
+            firstTile: {x: false, y: false},
+            secondTile: {x: false, y: false}
+        };
+        
+        switch(type) {
+            case MonsterType.BASILISK:
+                this.name = "Basilisk";
+                this.upright = true;
+                this.firstTilePosition = {x: 10, y: 7};
+                this.secondTilePosition = {x: 21, y: 6};
+                this.attacks = ["FIREBREATH"];
+                this.target = null;
+                this.range = 5;
+                this.speed = 1; // Number of tiles to move in a turn
+                this.actFrequency = 2; // Number of turns to wait between actions
+                this.turnsWaited = 0; // Number of turns waited since last action
+                this.getTargetsInRange = function() {
+                    if (players.length > 0) {
+                        for(let obj of players) { 
+                            if(obj.isDead === false) {
+                                let dx = this.x - obj.x;
+                                let dy = this.y - obj.y;
+                                let distance = Math.sqrt(dx * dx + dy * dy);
+                
+                                if(distance <= this.range) { // within range of Basilisk's attack
+                                    this.target = obj;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        this.target = null;
+                    }
+                } 
+                this.canSeeTarget = function(target) {
+                    let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
+                    let seen = true;
+                    for(let point of lineToTarget) {
+                        let x = point.x;
+                        let y = point.y;
+                        // If there's a wall or any other blocking entity, the monster can't see the target
+                        if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
+                            seen = false;
+                        }
+                    }
+                    return seen;
+                }
+                this.getAdjacentTiles = function() {
+                    let adjacentTiles = [];
+                    for(let dx = -1; dx <= 1; dx++) {
+                        for(let dy = -1; dy <= 1; dy++) {
+                            if(dx === 0 && dy === 0) continue;
+                            let newX = this.x + dx;
+                            let newY = this.y + dy;
+                            if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
+                                adjacentTiles.push({x: newX, y: newY});
+                            }
+                        }
+                    }
+                    return adjacentTiles;
+                };
+                this.moveRandomly = function() {
+                    let adjacentTiles = this.getAdjacentTiles();
+                
+                    // Filter out tiles that have a locked door.
+                    adjacentTiles = adjacentTiles.filter(tile => {
+                        let doorOnTile = Door.allDoors.find(door => door.x === tile.x && door.y === tile.y);
+                        if (doorOnTile) {
+                            if (doorOnTile.isLocked) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    });
+                
+                    if(adjacentTiles.length > 0) {
+                        let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
+                        this.x = randomTile.x;
+                        this.y = randomTile.y;
+                
+                        // Open any unlocked door on the tile.
+                        let doorOnTile = Door.allDoors.find(door => door.x === this.x && door.y === this.y);
+                        if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
+                            doorOnTile.open();
+                            messageList.addMessage("You hear a crashing noise.");
+                        }
+                
+                        this.updateSpritePosition();
+                    }
+                };
+                this.act = function() {
+                    console.log("Basilisk's turn");
+                    if(!this.target) {
+                        this.getTargetsInRange();
+                    }
+                    if(this.target) {
+                        if (this.canSeeTarget(this.target)) {
+                            console.log("The Basilisk sees something!");
+                            for (let attackKey of this.attacks) {
+                                Attacks[attackKey](this, this.target);
+                            }
+                        }
+                        this.target = null;
+                    }  else if(this.turnsWaited >= this.actFrequency) {
+                        for(let i = 0; i < this.speed; i++) {
+                            this.moveRandomly();
+                            //console.log("I'd move if I felt like it.")
+                            
+                        }
+                        this.turnsWaited = 0;
+                    }
+                    else {
+                        this.turnsWaited++;
+                    }
+                }
+                break;
+            case MonsterType.CHIMERA:
+                    this.name = "Chimera";
+                    this.upright = Math.random() > 0.5;
+                    this.firstTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    this.secondTilePosition = {
+                        x: Math.floor(Math.random() * 23), 
+                        y: Math.floor(Math.random() * 11)
+                    };
+                    
+                    this.spriteFlip = {
+                        firstTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }, 
+                        secondTile: {
+                            x: Math.random() > 0.5, 
+                            y: Math.random() > 0.5
+                        }
+                    };
+                    break;
+            default:
+                this.name = monster;
+                this.upright = true;
+                this.footprintPosition = {x: 10, y: 5};
+                this.headPosition = {x: 1, y: 0};
+                break;
+        }
+        this.updateSpritePosition = function() {
+            if (this.sprite.firstTile && this.sprite.secondTile) {
+                this.sprite.firstTile.x = this.x * TILE_WIDTH * SCALE_FACTOR;
+                this.sprite.firstTile.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        
+                if (this.upright) {
+                    this.sprite.secondTile.x = this.sprite.firstTile.x;
+                    this.sprite.secondTile.y = this.sprite.firstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+                } else {
+                    this.sprite.secondTile.x = this.sprite.firstTile.x + TILE_WIDTH * SCALE_FACTOR;
+                    this.sprite.secondTile.y = this.sprite.firstTile.y;
+                }
+        
+                if(this.sprite.firstShadow && this.sprite.secondShadow){
+                    this.sprite.firstShadow.x = this.sprite.firstTile.x;
+                    this.sprite.firstShadow.y = this.sprite.firstTile.y;
+        
+                    this.sprite.secondShadow.x = this.sprite.secondTile.x;
+                    this.sprite.secondShadow.y = this.sprite.secondTile.y;
+                }
+            }
+        }
+
+        Monster.allMonsters.push(this);
+        
+    }
+    printStats() {
+        this.inspector.clearMessages();
+        this.inspector.addMessage( "Name: " + this.name);
+        this.inspector.addMessage( "Blood: " + this.blood);
+    }
+}
+
+function createMonsterSprite(monster) {
+    activeEntities.push(this);
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let firstTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.firstTilePosition.x * TILE_WIDTH, 
+        monster.firstTilePosition.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteFirstTile = new PIXI.Sprite(firstTileTexture);
+    spriteFirstTile.scale.set(SCALE_FACTOR);
+    spriteFirstTile.zIndex = 2;
+
+    let secondTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.secondTilePosition.x * TILE_WIDTH, 
+        monster.secondTilePosition.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteSecondTile = new PIXI.Sprite(secondTileTexture);
+    spriteSecondTile.scale.set(SCALE_FACTOR);
+    spriteSecondTile.zIndex = 1;
+
+    spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
+    spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+        spriteFirstTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+        spriteFirstTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+        spriteSecondTile.x += TILE_WIDTH * SCALE_FACTOR;
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+        spriteSecondTile.y += TILE_HEIGHT * SCALE_FACTOR;
+    }
+    if (monster.upright) {
+        spriteSecondTile.x = spriteFirstTile.x;
+        spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+    } else {
+        spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
+        spriteSecondTile.y = spriteFirstTile.y;
+    }
+    if (monster.spriteFlip.firstTile.x) {
+        spriteFirstTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.firstTile.y) {
+        spriteFirstTile.scale.y *= -1; // Flip vertically
+    }
+    if (monster.spriteFlip.secondTile.x) {
+        spriteSecondTile.scale.x *= -1; // Flip horizontally
+    }
+    if (monster.spriteFlip.secondTile.y) {
+        spriteSecondTile.scale.y *= -1; // Flip vertically
+    }
+    gameContainer.addChild(spriteFirstTile);
+    gameContainer.addChild(spriteSecondTile);
+
+    monster.sprite = { firstTile: spriteFirstTile, secondTile: spriteSecondTile };
+    let firstShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.firstShadowTile.x * TILE_WIDTH, 
+        monster.firstShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteFirstShadow = new PIXI.Sprite(firstShadowTexture);
+    spriteFirstShadow.scale.set(SCALE_FACTOR);
+    spriteFirstShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
+    spriteFirstShadow.visible = false;
+
+    let secondShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        monster.secondShadowTile.x * TILE_WIDTH, 
+        monster.secondShadowTile.y * TILE_HEIGHT, 
+        TILE_WIDTH, TILE_HEIGHT));
+    let spriteSecondShadow = new PIXI.Sprite(secondShadowTexture);
+    spriteSecondShadow.scale.set(SCALE_FACTOR);
+    spriteSecondShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the wall
+    spriteSecondShadow.visible = false;
+
+    gameContainer.addChild(spriteFirstShadow);
+    gameContainer.addChild(spriteSecondShadow);
+
+    monster.sprite.firstShadow = spriteFirstShadow;
+    monster.sprite.secondShadow = spriteSecondShadow;
+    spriteFirstTile.interactive = true;  // Make the sprite respond to interactivity
+    spriteFirstTile.on('mouseover', () => {
+        messageList.hideBox();  
+        monster.printStats();  // Ensure there's a printStats method for Monster
+        inspector.showBox();  
+        inspector.render();  
+    });
+
+    spriteSecondTile.interactive = true;  
+    spriteSecondTile.on('mouseover', () => {
+        messageList.hideBox();  
+        monster.printStats();  // Ensure there's a printStats method for Monster
+        inspector.showBox();  
+        inspector.render();  
+    });
+
+    spriteFirstTile.on('mouseout', () => {
+        inspector.hideBox();
+        messageList.showBox();
+    });
+    
+    spriteSecondTile.on('mouseout', () => {
+        inspector.hideBox();
+        messageList.showBox();
+    });
+
+}
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -773,357 +1196,6 @@ function createPlayerSprite(player) {
 
 }
 
-const MonsterType = Object.freeze({
-    "BASILISK": 0,
-    "CHIMERA": 1,
-});
-
-
-const Attacks = {
-    FIREBREATH: function(monster, target) {
-        target.isBurning = true;
-        let fireTilesCount = Math.floor(Math.random() * 4) + 2; // 2 to 5 fire tiles
-        let fire1 = new Fire(target.x, target.y, monster.scheduler, '0xFF0000');//one fire directly on the player
-        monster.scheduler.add(fire1, true);
-        while (fireTilesCount-- > 0) {
-            let dx = Math.floor(Math.random() * 7) - 3; // -3 to 3
-            let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
-            let newX = target.x + dx;
-            let newY = target.y + dy;
-            if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                let fire = new Fire(newX, newY, monster.scheduler, '0xFF0000');
-                monster.scheduler.add(fire, true);
-            }
-        }
-        messageList.addMessage("The {0} breathes flames!", [monster.name]);
-    },
-    // Add other attacks here
-}
-
-class Monster {
-    static allMonsters = [];
-    constructor(type, x, y, scheduler, engine, messageList, inspector) {
-        this.name = null;
-        console.log("ROAR");
-        this.isDead = false;
-        this.upright = true;
-        this.type = type;
-        this.x = x;
-        this.y = y;
-        this.prevX = null;
-        this.prevY = null;
-        this.sprite = {}; 
-        this.fireproof;
-        this.secondShadowTile = {x: 14, y: 9};
-        this.firstShadowTile = {x: 8, y: 6};
-        this.sprite.shadow = null;
-        this.firstShadowTile.zIndex = 1.5;
-        this.scheduler = scheduler;
-        this.engine = engine;
-        this.messageList = messageList;
-        this.inspector = inspector;
-        this.blood = 100;
-        this.isBurning = false;
-        this.burningTurns = 0;
-        this.speed = 1;
-        this.actFrequency = 1;
-
-        this.name = ""; // To be set by a monster-specific code.
-        this.description = ""; // To be set by a monster-specific code.
-
-        // An array of attacks a monster can perform. Can be set by a monster-specific code.
-        this.attacks = []; 
-        this.spriteFlip = {
-            firstTile: {x: false, y: false},
-            secondTile: {x: false, y: false}
-        };
-        
-        switch(type) {
-            case MonsterType.BASILISK:
-                this.name = "Basilisk";
-                this.upright = true;
-                this.firstTilePosition = {x: 10, y: 7};
-                this.secondTilePosition = {x: 21, y: 6};
-                this.attacks = ["FIREBREATH"];
-                this.target = null;
-                this.range = 5;
-                this.speed = 1; // Number of tiles to move in a turn
-                this.actFrequency = 2; // Number of turns to wait between actions
-                this.turnsWaited = 0; // Number of turns waited since last action
-                this.getTargetsInRange = function() {
-                    if (players.length > 0) {
-                        for(let obj of players) { 
-                            if(obj.isDead === false) {
-                                let dx = this.x - obj.x;
-                                let dy = this.y - obj.y;
-                                let distance = Math.sqrt(dx * dx + dy * dy);
-                
-                                if(distance <= this.range) { // within range of Basilisk's attack
-                                    this.target = obj;
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        this.target = null;
-                    }
-                } 
-                this.canSeeTarget = function(target) {
-                    let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
-                    let seen = true;
-                    for(let point of lineToTarget) {
-                        let x = point.x;
-                        let y = point.y;
-                        // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
-                            seen = false;
-                        }
-                    }
-                    return seen;
-                }
-                this.getAdjacentTiles = function() {
-                    let adjacentTiles = [];
-                    for(let dx = -1; dx <= 1; dx++) {
-                        for(let dy = -1; dy <= 1; dy++) {
-                            if(dx === 0 && dy === 0) continue;
-                            let newX = this.x + dx;
-                            let newY = this.y + dy;
-                            if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                                adjacentTiles.push({x: newX, y: newY});
-                            }
-                        }
-                    }
-                    return adjacentTiles;
-                };
-                this.moveRandomly = function() {
-                    let adjacentTiles = this.getAdjacentTiles();
-                
-                    // Filter out tiles that have a locked door.
-                    adjacentTiles = adjacentTiles.filter(tile => {
-                        let doorOnTile = Door.allDoors.find(door => door.x === tile.x && door.y === tile.y);
-                        if (doorOnTile) {
-                            if (doorOnTile.isLocked) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    });
-                
-                    if(adjacentTiles.length > 0) {
-                        let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
-                        this.x = randomTile.x;
-                        this.y = randomTile.y;
-                
-                        // Open any unlocked door on the tile.
-                        let doorOnTile = Door.allDoors.find(door => door.x === this.x && door.y === this.y);
-                        if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
-                            doorOnTile.open();
-                            messageList.addMessage("You hear a crashing noise.");
-                        }
-                
-                        this.updateSpritePosition();
-                    }
-                };
-                this.act = function() {
-                    console.log("Basilisk's turn");
-                    if(!this.target) {
-                        this.getTargetsInRange();
-                    }
-                    if(this.target) {
-                        if (this.canSeeTarget(this.target)) {
-                            console.log("The Basilisk sees something!");
-                            for (let attackKey of this.attacks) {
-                                Attacks[attackKey](this, this.target);
-                            }
-                        }
-                        this.target = null;
-                    }  else if(this.turnsWaited >= this.actFrequency) {
-                        for(let i = 0; i < this.speed; i++) {
-                            this.moveRandomly();
-                            //console.log("I'd move if I felt like it.")
-                            
-                        }
-                        this.turnsWaited = 0;
-                    }
-                    else {
-                        this.turnsWaited++;
-                    }
-                }
-                break;
-            case MonsterType.CHIMERA:
-                    this.name = "Chimera";
-                    this.upright = Math.random() > 0.5;
-                    this.firstTilePosition = {
-                        x: Math.floor(Math.random() * 23), 
-                        y: Math.floor(Math.random() * 11)
-                    };
-                    this.secondTilePosition = {
-                        x: Math.floor(Math.random() * 23), 
-                        y: Math.floor(Math.random() * 11)
-                    };
-                    
-                    this.spriteFlip = {
-                        firstTile: {
-                            x: Math.random() > 0.5, 
-                            y: Math.random() > 0.5
-                        }, 
-                        secondTile: {
-                            x: Math.random() > 0.5, 
-                            y: Math.random() > 0.5
-                        }
-                    };
-                    break;
-            default:
-                this.name = monster;
-                this.upright = true;
-                this.footprintPosition = {x: 10, y: 5};
-                this.headPosition = {x: 1, y: 0};
-                break;
-        }
-        this.updateSpritePosition = function() {
-            if (this.sprite.firstTile && this.sprite.secondTile) {
-                this.sprite.firstTile.x = this.x * TILE_WIDTH * SCALE_FACTOR;
-                this.sprite.firstTile.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
-        
-                if (this.upright) {
-                    this.sprite.secondTile.x = this.sprite.firstTile.x;
-                    this.sprite.secondTile.y = this.sprite.firstTile.y - TILE_HEIGHT * SCALE_FACTOR;
-                } else {
-                    this.sprite.secondTile.x = this.sprite.firstTile.x + TILE_WIDTH * SCALE_FACTOR;
-                    this.sprite.secondTile.y = this.sprite.firstTile.y;
-                }
-        
-                if(this.sprite.firstShadow && this.sprite.secondShadow){
-                    this.sprite.firstShadow.x = this.sprite.firstTile.x;
-                    this.sprite.firstShadow.y = this.sprite.firstTile.y;
-        
-                    this.sprite.secondShadow.x = this.sprite.secondTile.x;
-                    this.sprite.secondShadow.y = this.sprite.secondTile.y;
-                }
-            }
-        }
-
-        Monster.allMonsters.push(this);
-        
-    }
-    printStats() {
-        this.inspector.clearMessages();
-        this.inspector.addMessage( "Name: " + this.name);
-        this.inspector.addMessage( "Blood: " + this.blood);
-    }
-}
-
-function createMonsterSprite(monster) {
-    activeEntities.push(this);
-    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
-    let firstTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.firstTilePosition.x * TILE_WIDTH, 
-        monster.firstTilePosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
-    let spriteFirstTile = new PIXI.Sprite(firstTileTexture);
-    spriteFirstTile.scale.set(SCALE_FACTOR);
-    spriteFirstTile.zIndex = 2;
-
-    let secondTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.secondTilePosition.x * TILE_WIDTH, 
-        monster.secondTilePosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
-    let spriteSecondTile = new PIXI.Sprite(secondTileTexture);
-    spriteSecondTile.scale.set(SCALE_FACTOR);
-    spriteSecondTile.zIndex = 1;
-
-    spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
-    spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
-    if (monster.spriteFlip.firstTile.x) {
-        spriteFirstTile.scale.x *= -1; // Flip horizontally
-        spriteFirstTile.x += TILE_WIDTH * SCALE_FACTOR;
-    }
-    if (monster.spriteFlip.firstTile.y) {
-        spriteFirstTile.scale.y *= -1; // Flip vertically
-        spriteFirstTile.y += TILE_HEIGHT * SCALE_FACTOR;
-    }
-    if (monster.spriteFlip.secondTile.x) {
-        spriteSecondTile.scale.x *= -1; // Flip horizontally
-        spriteSecondTile.x += TILE_WIDTH * SCALE_FACTOR;
-    }
-    if (monster.spriteFlip.secondTile.y) {
-        spriteSecondTile.scale.y *= -1; // Flip vertically
-        spriteSecondTile.y += TILE_HEIGHT * SCALE_FACTOR;
-    }
-    if (monster.upright) {
-        spriteSecondTile.x = spriteFirstTile.x;
-        spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
-    } else {
-        spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
-        spriteSecondTile.y = spriteFirstTile.y;
-    }
-    if (monster.spriteFlip.firstTile.x) {
-        spriteFirstTile.scale.x *= -1; // Flip horizontally
-    }
-    if (monster.spriteFlip.firstTile.y) {
-        spriteFirstTile.scale.y *= -1; // Flip vertically
-    }
-    if (monster.spriteFlip.secondTile.x) {
-        spriteSecondTile.scale.x *= -1; // Flip horizontally
-    }
-    if (monster.spriteFlip.secondTile.y) {
-        spriteSecondTile.scale.y *= -1; // Flip vertically
-    }
-    gameContainer.addChild(spriteFirstTile);
-    gameContainer.addChild(spriteSecondTile);
-
-    monster.sprite = { firstTile: spriteFirstTile, secondTile: spriteSecondTile };
-    let firstShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.firstShadowTile.x * TILE_WIDTH, 
-        monster.firstShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
-    let spriteFirstShadow = new PIXI.Sprite(firstShadowTexture);
-    spriteFirstShadow.scale.set(SCALE_FACTOR);
-    spriteFirstShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
-    spriteFirstShadow.visible = false;
-
-    let secondShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.secondShadowTile.x * TILE_WIDTH, 
-        monster.secondShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
-    let spriteSecondShadow = new PIXI.Sprite(secondShadowTexture);
-    spriteSecondShadow.scale.set(SCALE_FACTOR);
-    spriteSecondShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the wall
-    spriteSecondShadow.visible = false;
-
-    gameContainer.addChild(spriteFirstShadow);
-    gameContainer.addChild(spriteSecondShadow);
-
-    monster.sprite.firstShadow = spriteFirstShadow;
-    monster.sprite.secondShadow = spriteSecondShadow;
-    spriteFirstTile.interactive = true;  // Make the sprite respond to interactivity
-    spriteFirstTile.on('mouseover', () => {
-        messageList.hideBox();  
-        monster.printStats();  // Ensure there's a printStats method for Monster
-        inspector.showBox();  
-        inspector.render();  
-    });
-
-    spriteSecondTile.interactive = true;  
-    spriteSecondTile.on('mouseover', () => {
-        messageList.hideBox();  
-        monster.printStats();  // Ensure there's a printStats method for Monster
-        inspector.showBox();  
-        inspector.render();  
-    });
-
-    spriteFirstTile.on('mouseout', () => {
-        inspector.hideBox();
-        messageList.showBox();
-    });
-    
-    spriteSecondTile.on('mouseout', () => {
-        inspector.hideBox();
-        messageList.showBox();
-    });
-
-}
-
 //this is for tinting fire
 function generateColorVariation(color, variation) {
     let baseColor = parseInt(color.slice(2), 16); // Convert to base 16 integer
@@ -1150,6 +1222,7 @@ class Fire {
         this.x = x;
         this.y = y;
         this.name = "Fire";
+        this.displayInfo = this.name;
         this.scheduler = scheduler;
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
         this.color = color;
@@ -1168,7 +1241,7 @@ class Fire {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
-        this.sprite.interactive = true;
+        /* this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
             this.showInspectorInfo();
@@ -1178,7 +1251,7 @@ class Fire {
         this.sprite.on('mouseout', () => {
             inspector.hideBox();
             messageList.showBox();
-        });
+        }); */
         let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
 
         this.tween = new createjs.Tween.get(this.sprite)
@@ -1271,6 +1344,7 @@ class Smoke {
         this.y = y;
         this.scheduler = scheduler;
         this.name = "Smoke";
+        this.displayInfo = this.name;
         this.sprite = new PIXI.AnimatedSprite(smokeFrames); // Replace fireFrames with smokeFrames
         this.sprite.animationSpeed = 0.1;
         this.sprite.loop = true;
@@ -1280,7 +1354,7 @@ class Smoke {
         this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
         gameContainer.addChild(this.sprite);
         objectMap[this.y][this.x] = 400;
-        this.sprite.interactive = true;
+        /* this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
             this.showInspectorInfo();
@@ -1290,7 +1364,7 @@ class Smoke {
         this.sprite.on('mouseout', () => {
             inspector.hideBox();
             messageList.showBox();
-        });
+        }); */
         
     }
 
@@ -1341,6 +1415,7 @@ class Item {
         this.id = id;
         this._tileIndex = {x: 17, y: 2};
         this.isFlammable = false;
+        this.displayInfo = "An unknown item";
         switch (type) {
             case ItemType.BOW:
                 this._name = 'Bow';
@@ -1365,7 +1440,8 @@ class Item {
             TILE_HEIGHT
         ));
         this.sprite = new PIXI.Sprite(this.spriteTexture);
-        this.sprite.interactive = true;
+        // we used to have items use their own inspector ui function, but now cursor will do it
+        /* this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
             this.showInspectorInfo();
@@ -1376,9 +1452,10 @@ class Item {
             inspector.hideBox();
             messageList.showBox();
         });
+        */
         if (type === ItemType.KEY) {
             this.sprite.tint = this.colorValue;
-        }
+        } 
 
         // Set position, scale, and zIndex of the sprite
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);
@@ -1625,6 +1702,8 @@ function createSprite(x, y, index, layer, value = null) {
         container = uiMaskContainer;
     } else if (layer === uiMap) {
         container = uiContainer;
+    } else if (layer === overlayMap) {
+        container = overlayContainer;
     } else {
         container = gameContainer;
     }
@@ -1648,6 +1727,9 @@ function createSprite(x, y, index, layer, value = null) {
     // Set initial opacity to 1
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
+    }
+    if (layer === overlayMap){
+        sprite.zIndex = 5;
     }
     if (layer === wallMap) {
         sprite.zIndex = 3;
@@ -2248,7 +2330,7 @@ function setup() {
             }
         }
     }
-
+    
     let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
