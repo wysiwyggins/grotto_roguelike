@@ -10,7 +10,6 @@ let app = new PIXI.Application({
 app.stage.sortableChildren = true;
 // pixi uses this to switch zIndex layering within one of it's containers
 
-let overlayContainer = new PIXI.Container();
 let uiContainer = new PIXI.Container();
 let uiContainerShown = true;
 let uiMaskContainer = new PIXI.Container();
@@ -24,11 +23,6 @@ app.stage.addChild(gameContainer);
 gameContainer.sortableChildren = true;
 app.stage.addChild(uiMaskContainer);
 app.stage.addChild(uiContainer);
-app.stage.addChild(overlayContainer);
-let cursor = new Cursor();
-gameContainer.on('mousemove', (event) => {
-    cursor.onMouseMove(event.data.global.x, event.data.global.y);
-});
 
 //adding a global stub for the player. This kind of precludes fun things like multiple players, but oh well
 // there is an array of players still from when I thought I'd have multiple players
@@ -58,7 +52,7 @@ let backgroundMap = createEmptyMap();
 //background is the black void and the shadows that make the rooms look like towers in the dark
 let floorMap = createEmptyMap();
 //floor is used for pathfinding, it also includes the 'footprint' tiles of walls, since those are used for pathfinding
-let objectMap = createEmptyMap();
+let objectMap = createEmptyObjectMap();
 //items, but also fire, smoke and doors
 let wallMap = createEmptyMap();
 // the height of walls, (their middle and top tiles)
@@ -66,8 +60,6 @@ let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
 // the content of uiboxes
-let overlayMap = createEmptyMap();
-//the cursor highlight and other overlays like targeting
 
 let engine;
 let gameOver = false;
@@ -91,6 +83,19 @@ function createEmptyMap() {
     }
     return map;
 }
+
+function createEmptyObjectMap() {
+    let map = new Array(MAP_HEIGHT);
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        map[y] = new Array(MAP_WIDTH);
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            map[y][x] = []; // Initialize each tile with an empty array
+        }
+    }
+    return map;
+}
+
+
 
 //loading animated sprite tiles for fire and smoke
 
@@ -146,70 +151,6 @@ const PlayerType = Object.freeze({
     "VEGETABLE": 8
     
 });
-
-
-class Cursor {
-    constructor() {
-        // Initializing cursor properties
-        this.x = 0;
-        this.y = 0;
-        this.selectedSprite = null;
-    }
-
-    updatePosition(mouseX, mouseY) {
-        // Calculate tile coordinates from mouse position
-        this.x = Math.floor(mouseX / (TILE_WIDTH * SCALE_FACTOR));
-        this.y = Math.floor(mouseY / (TILE_HEIGHT * SCALE_FACTOR));
-
-        // Update the highlighted tile
-        this.highlightTile();
-    }
-
-    highlightTile() {
-        // Remove previous highlighted sprite if it exists
-        if (this.selectedSprite) {
-            overlayContainer.removeChild(this.selectedSprite);
-            this.selectedSprite = null;
-        }
-
-        // Use the createSprite function to create a new highlighted tile on the uiMaskMap layer
-        // Assuming you have a separate tile (e.g. a semi-transparent white tile) for highlighting
-        let highlightTileIndex = {x: 11, y: 10}; // Replace with appropriate indices
-        this.selectedSprite = createSprite(this.x, this.y, highlightTileIndex, overlayMap);
-        if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) { //check for an occluding wall with a floor behind it and make it transparent;
-            wallMap[y][x].sprite.alpha = 0.2;
-        }
-    }
-
-    inspectTile() {
-        if (objectMap[this.y] && objectMap[this.y][this.x]) {
-            let objectData = objectMap[this.y][this.x];
-            if (objectData && objectData.item) {
-                // Clear previous messages in inspector
-                inspector.clearMessages();
-
-                // Check for displayInfo and show it in inspector
-                if (objectData.item.displayInfo) {
-                    inspector.addMessage(objectData.item.displayInfo);
-                }
-
-                // Display inspector UI box
-                inspector.showBox();
-                inspector.render();
-            }
-        } else {
-            // Hide inspector if no objects on tile
-            inspector.hideBox();
-        }
-    }
-
-    onMouseMove(mouseX, mouseY) {
-        this.updatePosition(mouseX, mouseY);
-        this.inspectTile();
-    }
-}
-
-
 
 const MonsterType = Object.freeze({
     "BASILISK": 0,
@@ -1702,8 +1643,6 @@ function createSprite(x, y, index, layer, value = null) {
         container = uiMaskContainer;
     } else if (layer === uiMap) {
         container = uiContainer;
-    } else if (layer === overlayMap) {
-        container = overlayContainer;
     } else {
         container = gameContainer;
     }
@@ -1728,9 +1667,7 @@ function createSprite(x, y, index, layer, value = null) {
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
     }
-    if (layer === overlayMap){
-        sprite.zIndex = 5;
-    }
+
     if (layer === wallMap) {
         sprite.zIndex = 3;
 
