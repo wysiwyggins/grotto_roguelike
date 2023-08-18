@@ -53,9 +53,13 @@ let backgroundMap = createEmptyMap();
 let floorMap = createEmptyMap();
 //floor is used for pathfinding, it also includes the 'footprint' tiles of walls, since those are used for pathfinding
 let objectMap = createEmptyMap();
-//items, but also fire, smoke and doors
+//items
+let doorMap = createEmptyMap();
+//doors
 let wallMap = createEmptyMap();
 // the height of walls, (their middle and top tiles)
+let atmosphereMap = createEmptyMap();
+// fire, smoke and gas
 let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
@@ -245,7 +249,7 @@ class Player {
                 for (let point of lineToMonster) {
                     let x = point.x;
                     let y = point.y;
-                    if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
+                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x])) {
                         seen = false;
                     }
                 }
@@ -270,113 +274,133 @@ class Player {
     }    
     //moving with arrow keys
     move(direction) {
-        // Store previous position
         console.log('Player is taking turn...');
-        
-        this.prevX = this.x;
-        this.prevY = this.y;
     
-        // Convert player's tile position to pixel position
-        let newX = this.x * TILE_WIDTH * SCALE_FACTOR;
-        let newY = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        // Calculate direction of movement in tiles (simpler than dealing with pixels first)
+        let dx = 0, dy = 0;
     
-        // Calculate direction of movement in pixels
-        switch(direction) {
+        switch (direction) {
             case 'up':
-                newY -= TILE_HEIGHT * SCALE_FACTOR;
+                dy = -1;
                 break;
             case 'down':
-                newY += TILE_HEIGHT * SCALE_FACTOR;
+                dy = 1;
                 break;
             case 'left':
-                newX -= TILE_WIDTH * SCALE_FACTOR;
+                dx = -1;
                 break;
             case 'right':
-                newX += TILE_WIDTH * SCALE_FACTOR;
+                dx = 1;
                 break;
             case 'up-left':
-                newX -= TILE_WIDTH * SCALE_FACTOR;
-                newY -= TILE_HEIGHT * SCALE_FACTOR;
+                dy = -1;
+                dx = -1;
                 break;
             case 'up-right':
-                newX += TILE_WIDTH * SCALE_FACTOR;
-                newY -= TILE_HEIGHT * SCALE_FACTOR;
+                dy = -1;
+                dx = 1;
                 break;
             case 'down-left':
-                newX -= TILE_WIDTH * SCALE_FACTOR;
-                newY += TILE_HEIGHT * SCALE_FACTOR;
+                dy = 1;
+                dx = -1;
                 break;
             case 'down-right':
-                newX += TILE_WIDTH * SCALE_FACTOR;
-                newY += TILE_HEIGHT * SCALE_FACTOR;
+                dy = 1;
+                dx = 1;
                 break;
+    
         }
     
-        // Convert the new pixel position back to tile position for collision checking
-        let newTileX = newX / (TILE_WIDTH * SCALE_FACTOR);
-        let newTileY = newY / (TILE_HEIGHT * SCALE_FACTOR);
+        let newTileX = this.x + dx;
+        let newTileY = this.y + dy;
     
-        // Check for collisions or going out of bounds
-        if (newTileX >= 0 && newTileX < MAP_WIDTH && newTileY >= 0 && newTileY < MAP_HEIGHT) {
-            let floorTileValue = floorMap[newTileY][newTileX]?.value;
-            let objectTileValue = objectMap[newTileY][newTileX]?.value;
+        // 1. Check if the tile is out of bounds. If so, return early.
+        if (newTileX < 0 || newTileX >= MAP_WIDTH || newTileY < 0 || newTileY >= MAP_HEIGHT) {
+            return; // Exit early
+        }
     
-            if (floorTileValue === 157 && (!objectTileValue || objectTileValue < 300)) {
+        let floorTileValue = floorMap[newTileY][newTileX]?.value;
+    
+        // 3. Check if the tile is walkable. If not, return early.
+        if (floorTileValue !== 157) {
+            return; // Exit early
+        }
+    
+        // 2. Check if the tile has a locked door. If so, return early.
+        let door = Door.totalDoors().find(door => door.x === newTileX && door.y === newTileY);
+        if (door && door.isLocked) {
+            this.messageList.addMessage("The door is locked!");
+            return; // Exit early
+        }
+
+        // New logic for handling unlocked doors.
+        if (door && !door.isLocked) {
+            door.open();  // Assuming the Door class has an open method.
+            this.x = newTileX;
+            this.y = newTileY;
+            return;  // Exit the move function after handling the door
+        }
+    
+        // 4. Handle any other conditions, like fires or items.
+        let objectTileValue = objectMap[newTileY][newTileX]?.value;
+        let atmosphereTileValue = atmosphereMap[newTileY][newTileX]?.value;
+        console.log(`Checking fire at (${newTileX}, ${newTileY}): `, atmosphereTileValue);
+        //checks for fire etc
+        if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
+            this.x = newTileX;
+            this.y = newTileY;
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
+        } else if (atmosphereTileValue === 300) {  
+            if (this.attemptingFireEntry && this.fireEntryDirection === direction) {
                 this.x = newTileX;
                 this.y = newTileY;
+                this.isBurning = true;
+                this.burningTurns = 0;
+                this.messageList.addMessage("You stepped into fire!");
                 this.attemptingFireEntry = false;
                 this.fireEntryDirection = null;
-            } else if (objectTileValue === 300) {
-                if (this.attemptingFireEntry && this.fireEntryDirection === direction) {
-                    this.x = newTileX;
-                    this.y = newTileY;
-                    this.isBurning = true;
-                    this.burningTurns = 0;
-                    this.messageList.addMessage("You stepped into fire!");
-                    this.attemptingFireEntry = false;
-                    this.fireEntryDirection = null;
-                } else {
-                    this.attemptingFireEntry = true;
-                    this.fireEntryDirection = direction;
-                    this.messageList.addMessage("Walk into the fire?");
-                }
             } else {
-                this.attemptingFireEntry = false;
-                this.fireEntryDirection = null;
+                this.attemptingFireEntry = true;
+                this.fireEntryDirection = direction;
+                this.messageList.addMessage("Walk into the fire?");
             }
-            let door = Door.totalDoors().find(door => door.x === newTileX && door.y === newTileY);
-            if (door) {
-                if (!door.isLocked) {
-                    messageList.addMessage("You open the door.");
-                    door.open();
-                } else {
-                    this.messageList.addMessage("The door is locked!");
-                    return; // Don't move if door is locked
-                }
-            }
-
-            let item = objectMap[newTileY][newTileX]?.item;
-            if (item) {
-                this.pickUpItem(item, newTileX, newTileY);
-            }
-
+        } else {
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
         }
-
-        //shadow stuff
-        
+    
+        let item = objectMap[newTileY][newTileX]?.item;
+        if (item) {
+            this.pickUpItem(item, newTileX, newTileY);
+        }
+    
+        // 5. Finally, update the player's position and sprite.
+    
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.x = newTileX;
+        this.y = newTileY;
+    
+        // Update sprite positions
+        this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
+        this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        this.sprite.overlay.x = this.sprite.footprint.x;
+        this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
+    
         let headTileY = this.y - 1;
         let isFrontOfWall = floorMap[headTileY]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the head
         this.sprite.shadow.visible = isFrontOfWall;
-
+    
         if (isFrontOfWall) {
             this.sprite.shadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position shadow to the right of the head
             this.sprite.shadow.y = headTileY * TILE_HEIGHT * SCALE_FACTOR;
         }
-
+    
         // Handle visibility and positioning of the foot shadow
         let isBesideFloor = floorMap[this.y]?.[this.x + 1]?.value === 157 || floorMap[this.y]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131 && objectMap[headTileY]?.[this.x + 1]?.value !== 300; // check the tile to the right of the footprint
         this.sprite.footShadow.visible = isBesideFloor;
-
+    
         if (isBesideFloor) {
             this.sprite.footShadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position foot shadow to the right of the footprint
             this.sprite.footShadow.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
@@ -411,21 +435,15 @@ class Player {
                     wallMap[y][x].sprite.alpha = 0.2;
                     createSprite(x, y, {x: 16, y: 5}, backgroundMap, 216);
                 }
-
+    
                 if (uiMaskMap[y]?.[x]?.sprite) {
                     uiMaskMap[y][x].sprite.alpha = 0.2;
                 }
             }
         }
-    
-        // Update sprite positions
-        this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
-        this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
-        this.sprite.overlay.x = this.sprite.footprint.x;
-        this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
-
-
     }
+    
+    
     //we don't want implicit steps to be taken instantly, we want to see them
     delayedMove(direction, delay) {
         return new Promise(resolve => {
@@ -446,11 +464,12 @@ class Player {
         let passableCallback = (x, y) => {
             let floorTileValue = floorMap[y][x]?.value;
             let objectTileValue = objectMap[y][x]?.value;
+            let atmosphereTileValue = atmosphereMap[y][x]?.value;
             // Tile is considered "unpassable" if it's on fire.
-            if (objectTileValue === 300) {
+            if (atmosphereTileValue === 300) {
                 return false;
             }
-            return floorTileValue === 157 && (!objectTileValue || objectTileValue < 300);
+            return floorTileValue === 157 && (!objectTileValue);
         }
 
         let astar = new ROT.Path.AStar(targetX, targetY, passableCallback);
@@ -1164,10 +1183,10 @@ class Fire {
         this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
         gameContainer.addChild(this.sprite);
         
-        if (!objectMap[this.y]) {
-            objectMap[this.y] = [];
+        if (!atmosphereMap[this.y]) {
+            atmosphereMap[this.y] = [];
         }
-        objectMap[this.y][this.x] = { value: 300, sprite: this.sprite };
+        atmosphereMap[this.y][this.x] = { value: 300, sprite: this.sprite };
         this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
@@ -1194,8 +1213,17 @@ class Fire {
         
     }
     showInspectorInfo() {
-        inspector.clearMessages();
-        inspector.addMessage(`${this.name}`); 
+        if (objectMap[this.y] && objectMap[this.y][this.x] && objectMap[this.y][this.x].item) {
+            // There's an Item at the same position on objectMap
+            const item = objectMap[this.y][this.x].item;
+            inspector.clearMessages();
+            inspector.addMessage(`Burning ${item.name}`);
+            inspector.showBox();  
+            inspector.render();
+        } else {
+            inspector.clearMessages();
+            inspector.addMessage(`${this.name}`); 
+        }
     };
 
     act() {
@@ -1205,7 +1233,7 @@ class Fire {
         if (--this.turnsLeft <= 0) {
             this.sprite.destroy();
             this.scheduler.remove(this);
-            objectMap[this.y][this.x] = null;
+            atmosphereMap[this.y][this.x] = null;
             let index = activeEntities.indexOf(this);
             if (index !== -1) {
                 activeEntities.splice(index, 1);
@@ -1228,10 +1256,10 @@ class Fire {
                 // Check if the new spot is valid and not already on fire
                 if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
                     floorMap[newY][newX].value === 157 && 
-                    (!objectMap[newY][newX] || objectMap[newY][newX].value !== 300 && objectMap[newY][newX].value !== 100)) {
+                    (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300 && objectMap[newY][newX].value !== 100)) {
                 
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
-                    objectMap[newY][newX].value = 300;
+                    atmosphereMap[newY][newX].value = 300;
                                     
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
                         // Set the transformation origin to the center of the sprite
@@ -1252,7 +1280,7 @@ class Fire {
         }
         if (Math.random() < 0.7) {
             let newY = this.y - 1; // the tile above the current one
-            if (newY >= 0 && floorMap[newY][this.x].value !== 177 && objectMap[newY][this.x] === null) {
+            if (newY >= 0 && floorMap[newY][this.x].value !== 177 && atmosphereMap[newY][this.x] === null) {
                 let smoke = new Smoke(this.x, newY, this.scheduler);
                 this.scheduler.add(smoke, true);
             }
@@ -1279,7 +1307,7 @@ class Smoke {
         this.sprite.scale.set(SCALE_FACTOR); 
         this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
         gameContainer.addChild(this.sprite);
-        objectMap[this.y][this.x] = 400;
+        atmosphereMap[this.y][this.x] = 400;
         this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
@@ -1303,7 +1331,7 @@ class Smoke {
         if (Math.random() < 0.5) {
             
             // Remove from object map
-            objectMap[this.y][this.x] = null;
+            atmosphereMap[this.y][this.x] = null;
 
             // Destroy sprite and remove from scheduler
             this.sprite.destroy();
@@ -1446,8 +1474,8 @@ class Door {
 
         // Create door parts on the object map
         for (let i = 0; i < spriteIndices.length; i++) {
-            createSprite(this.x, this.y - i, spriteIndices[i], objectMap, this.isLocked ? 101 : 100);
-            let sprite = objectMap[this.y - i][this.x].sprite;
+            createSprite(this.x, this.y - i, spriteIndices[i], doorMap, this.isLocked ? 101 : 100);
+            let sprite = doorMap[this.y - i][this.x].sprite;
             this.sprites.push(sprite);
 
             // Interactivity
@@ -1549,7 +1577,7 @@ class Door {
 
     updateDoorStateInMap(value) {
         for (let i = 0; i < 3; i++) {
-            objectMap[this.y - i][this.x].value = value;
+            doorMap[this.y - i][this.x].value = value;
         }
     }
 
@@ -1649,6 +1677,9 @@ function createSprite(x, y, index, layer, value = null) {
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
     }
+    if (layer === atmosphereMap){
+        sprite.zIndex = 3.5;
+    }
     if (layer === wallMap) {
         sprite.zIndex = 3;
 
@@ -1665,7 +1696,7 @@ function createSprite(x, y, index, layer, value = null) {
             container.removeChild(backgroundMap[y][x].sprite);
             backgroundMap[y][x].sprite = null;
         }
-    } else if (layer === objectMap) {
+    } else if (layer === objectMap || layer === doorMap) {
         sprite.zIndex = 2; // Set zIndex for objectMap
     } else if (layer === floorMap) {
         sprite.zIndex = 1;
@@ -1682,7 +1713,7 @@ function createSprite(x, y, index, layer, value = null) {
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
 
     // Update zIndex for objectMap based on y position compared to walls
-    if (layer === objectMap && wallMap?.[y]?.[x]?.sprite) {
+    if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
         if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
