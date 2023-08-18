@@ -281,27 +281,32 @@ class Player {
     
     move(direction) {
         console.log('Player is taking turn...');
-
+        
         let [dx, dy] = this.getDeltaXY(direction);
         let [newTileX, newTileY] = [this.x + dx, this.y + dy];
-
+        
         if (this.isOutOfBounds(newTileX, newTileY)) return;
-
+        
         if (!this.isWalkableTile(newTileX, newTileY)) return;
-
+        
         let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
         if (this.isLockedDoor(door)) return;
-
-        if (this.isOpenableDoor(door)) {
-            door.open();
+    
+        if (door) {
+            if (this.isOpenableDoor(door)) {
+                // If the door can be opened, open it, but don't move player yet.
+                door.open();
+            }
+            // Now, move the player onto the door's tile, whether the door was already open or just opened.
             this.updatePosition(newTileX, newTileY);
-            return;
+            return;  // Exit after handling the door.
         }
-
+    
         this.handleTileEffects(newTileX, newTileY, direction);
         this.checkForItems(newTileX, newTileY);
         this.updateSprites(newTileX, newTileY);
     }
+    
 
     getDeltaXY(direction) {
         let dx = 0, dy = 0;
@@ -440,7 +445,12 @@ class Player {
                 }
             }
         }
-    
+        this.prevX = this.x;
+        this.prevY = this.y;
+        
+        // Update the current position
+        this.x = newTileX;
+        this.y = newTileY;
         // Occlude nearby wall and UI sprites
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
@@ -450,9 +460,9 @@ class Player {
                 
                 if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) { //check for an occluding wall with floor behind it
                     createFloor(x,y);
-                    wallMap[y][x].sprite.alpha = 0.2;
+                    wallMap[y][x].sprite.alpha = 0.4;
                 } else if (wallMap[y]?.[x]?.sprite) { //for walls with no floor underneath that could occlude the player's sprite
-                    wallMap[y][x].sprite.alpha = 0.2;
+                    wallMap[y][x].sprite.alpha = 0.4;
                     createSprite(x, y, {x: 16, y: 5}, backgroundMap, 216);
                 }
     
