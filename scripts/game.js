@@ -298,7 +298,7 @@ class Player {
             return;
         }
 
-        this.handleTileEffects(newTileX, newTileY);
+        this.handleTileEffects(newTileX, newTileY, direction);
         this.checkForItems(newTileX, newTileY);
         this.updateSprites(newTileX, newTileY);
     }
@@ -358,15 +358,15 @@ class Player {
         return door && !door.isLocked;
     }
 
-    handleTileEffects(x, y) {
-        let atmosphereTileValue = atmosphereMap[y][x]?.value;
-        console.log(`Checking fire at (${x}, ${y}): `, atmosphereTileValue);
-        let floorTileValue = floorMap[y][x]?.value;
-        let objectTileValue = objectMap[y][x]?.value;
+    handleTileEffects(newTileX, newTileY, direction) {
+        let atmosphereTileValue = atmosphereMap[newTileY][newTileX]?.value;
+        console.log(`Checking fire at (${newTileX}, ${newTileY}): `, atmosphereTileValue);
+        let floorTileValue = floorMap[newTileY][newTileX]?.value;
+        let objectTileValue = objectMap[newTileY][newTileX]?.value;
         //checks for fire etc
         if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
-            this.x = x;
-            this.y = y;
+            this.x = newTileX;
+            this.y = newTileY;
             this.attemptingFireEntry = false;
             this.fireEntryDirection = null;
         } else if (atmosphereTileValue === 300) {  
@@ -1601,9 +1601,12 @@ class Door {
     }
 
     showInspectorInfo() {
+
         inspector.clearMessages();
         if(this.isOpen) {
-            inspector.addMessage("Close door?");
+            if (!player.isDead){
+                inspector.addMessage("Close door?");
+            }
         } else {
             if (this.isLocked) {
                 inspector.addMessage(`${this.name}`);
