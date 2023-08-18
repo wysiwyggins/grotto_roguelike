@@ -266,7 +266,7 @@ class Player {
         let x = Math.floor((event.x - app.renderer.screen.x) / (TILE_WIDTH * SCALE_FACTOR));
         let y = Math.floor((event.y - app.renderer.screen.y) / (TILE_HEIGHT * SCALE_FACTOR));
 
-        // make sure the click is inside the map and on a walkable tile
+        // make sure the click is inside the map
         if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
             this.messageList.addMessage("Walking.");
             this.moveTo(x, y);
