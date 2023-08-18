@@ -31,6 +31,7 @@ let player = null;
 document.getElementById('game').appendChild(app.view);
 
 // Set up some constants
+const rect = app.view.getBoundingClientRect();
 const TILE_WIDTH = 40;
 const TILE_HEIGHT = 30;
 const MAP_WIDTH = 60;
@@ -263,8 +264,12 @@ class Player {
         event.preventDefault();
 
         // calculate tile coordinates from pixel coordinates
-        let x = Math.floor((event.x - app.renderer.screen.x) / (TILE_WIDTH * SCALE_FACTOR));
-        let y = Math.floor((event.y - app.renderer.screen.y) / (TILE_HEIGHT * SCALE_FACTOR));
+        // use relative positions since we center the canvas with css
+        let relativeX = event.clientX - rect.left;
+        let relativeY = event.clientY - rect.top;
+
+        let x = Math.floor(relativeX / (TILE_WIDTH * SCALE_FACTOR));
+    let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
 
         // make sure the click is inside the map
         if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
@@ -273,12 +278,33 @@ class Player {
         }
     }    
     //moving with arrow keys
+    
     move(direction) {
         console.log('Player is taking turn...');
-    
-        // Calculate direction of movement in tiles (simpler than dealing with pixels first)
+
+        let [dx, dy] = this.getDeltaXY(direction);
+        let [newTileX, newTileY] = [this.x + dx, this.y + dy];
+
+        if (this.isOutOfBounds(newTileX, newTileY)) return;
+
+        if (!this.isWalkableTile(newTileX, newTileY)) return;
+
+        let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
+        if (this.isLockedDoor(door)) return;
+
+        if (this.isOpenableDoor(door)) {
+            door.open();
+            this.updatePosition(newTileX, newTileY);
+            return;
+        }
+
+        this.handleTileEffects(newTileX, newTileY);
+        this.checkForItems(newTileX, newTileY);
+        this.updateSprites(newTileX, newTileY);
+    }
+
+    getDeltaXY(direction) {
         let dx = 0, dy = 0;
-    
         switch (direction) {
             case 'up':
                 dy = -1;
@@ -308,43 +334,33 @@ class Player {
                 dy = 1;
                 dx = 1;
                 break;
-    
         }
-    
-        let newTileX = this.x + dx;
-        let newTileY = this.y + dy;
-    
-        // 1. Check if the tile is out of bounds. If so, return early.
-        if (newTileX < 0 || newTileX >= MAP_WIDTH || newTileY < 0 || newTileY >= MAP_HEIGHT) {
-            return; // Exit early
-        }
-    
-        let floorTileValue = floorMap[newTileY][newTileX]?.value;
-    
-        // 3. Check if the tile is walkable. If not, return early.
-        if (floorTileValue !== 157) {
-            return; // Exit early
-        }
-    
-        // 2. Check if the tile has a locked door. If so, return early.
-        let door = Door.totalDoors().find(door => door.x === newTileX && door.y === newTileY);
+        return [dx, dy];
+    }
+
+    isOutOfBounds(x, y) {
+        return x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT;
+    }
+
+    isWalkableTile(x, y) {
+        return floorMap[y][x]?.value === 157;
+    }
+
+    isLockedDoor(door) {
         if (door && door.isLocked) {
             this.messageList.addMessage("The door is locked!");
-            return; // Exit early
+            return true;
         }
+        return false;
+    }
 
-        // New logic for handling unlocked doors.
-        if (door && !door.isLocked) {
-            door.open();  // Assuming the Door class has an open method.
-            this.x = newTileX;
-            this.y = newTileY;
-            return;  // Exit the move function after handling the door
-        }
-    
-        // 4. Handle any other conditions, like fires or items.
-        let objectTileValue = objectMap[newTileY][newTileX]?.value;
-        let atmosphereTileValue = atmosphereMap[newTileY][newTileX]?.value;
-        console.log(`Checking fire at (${newTileX}, ${newTileY}): `, atmosphereTileValue);
+    isOpenableDoor(door) {
+        return door && !door.isLocked;
+    }
+
+    handleTileEffects(x, y) {
+        let atmosphereTileValue = atmosphereMap[y][x]?.value;
+        console.log(`Checking fire at (${x}, ${y}): `, atmosphereTileValue);
         //checks for fire etc
         if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
             this.x = newTileX;
@@ -369,20 +385,21 @@ class Player {
             this.attemptingFireEntry = false;
             this.fireEntryDirection = null;
         }
-    
-        let item = objectMap[newTileY][newTileX]?.item;
-        if (item) {
-            this.pickUpItem(item, newTileX, newTileY);
-        }
-    
-        // 5. Finally, update the player's position and sprite.
-    
+    }
+
+    checkForItems(x, y) {
+        let item = objectMap[y][x]?.item;
+        if (item) this.pickUpItem(item, x, y);
+    }
+
+    updatePosition(newTileX, newTileY) {
         this.prevX = this.x;
         this.prevY = this.y;
         this.x = newTileX;
         this.y = newTileY;
-    
-        // Update sprite positions
+    }
+
+    updateSprites(newTileX, newTileY) {
         this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
         this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
         this.sprite.overlay.x = this.sprite.footprint.x;
@@ -428,6 +445,7 @@ class Player {
                 let y = this.y + dy;
                 let x = this.x + dx;
                 //iterate over a 3x3 block of tiles around the player
+                
                 if (wallMap[y]?.[x]?.sprite && floorMap[y][x].value === 157) { //check for an occluding wall with floor behind it
                     createFloor(x,y);
                     wallMap[y][x].sprite.alpha = 0.2;
@@ -442,8 +460,7 @@ class Player {
             }
         }
     }
-    
-    
+
     //we don't want implicit steps to be taken instantly, we want to see them
     delayedMove(direction, delay) {
         return new Promise(resolve => {
@@ -490,7 +507,7 @@ class Player {
             if (this.isDead) {
                 break;
             }
-            if (this.canSeeMonster(allMonsters)) { 
+            if (this.canSeeMonster(Monster.allMonsters)) { 
                 this.messageList.addMessage("You see a monster!");
                 break;
             }
@@ -1678,7 +1695,7 @@ function createSprite(x, y, index, layer, value = null) {
         sprite.alpha = 1;
     }
     if (layer === atmosphereMap){
-        sprite.zIndex = 3.5;
+        sprite.zIndex = 3.9;
     }
     if (layer === wallMap) {
         sprite.zIndex = 3;
@@ -1719,10 +1736,6 @@ function createSprite(x, y, index, layer, value = null) {
         }
     }
 }
-
-
-
-
 
 
 function createVoid(x, y) {
