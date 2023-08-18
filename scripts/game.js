@@ -361,10 +361,12 @@ class Player {
     handleTileEffects(x, y) {
         let atmosphereTileValue = atmosphereMap[y][x]?.value;
         console.log(`Checking fire at (${x}, ${y}): `, atmosphereTileValue);
+        let floorTileValue = floorMap[y][x]?.value;
+        let objectTileValue = objectMap[y][x]?.value;
         //checks for fire etc
         if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
-            this.x = newTileX;
-            this.y = newTileY;
+            this.x = x;
+            this.y = y;
             this.attemptingFireEntry = false;
             this.fireEntryDirection = null;
         } else if (atmosphereTileValue === 300) {  
