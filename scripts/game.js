@@ -1285,7 +1285,7 @@ class Fire {
                 // Check if the new spot is valid and not already on fire
                 if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
                     floorMap[newY][newX].value === 157 && 
-                    (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300 && objectMap[newY][newX].value !== 100)) {
+                    (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300 && doorMap[newY][newX].value !== 100)) {
                 
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
                     atmosphereMap[newY][newX].value = 300;
