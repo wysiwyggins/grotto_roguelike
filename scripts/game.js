@@ -299,6 +299,7 @@ class Player {
             }
             // Now, move the player onto the door's tile, whether the door was already open or just opened.
             this.updatePosition(newTileX, newTileY);
+            this.updateSprites(newTileX, newTileY);
             return;  // Exit after handling the door.
         }
     
@@ -592,77 +593,100 @@ class Player {
     }
 
     handleKeydown(event) {
-        if (this.isDead) return;  
-        if (this.attemptingFireEntry) {
-            switch (event.key) {
-                case 'ArrowUp':
-                    this.move(this.fireEntryDirection === 'up' ? 'up' : null);
-                    break;
-                case 'ArrowDown':
-                    this.move(this.fireEntryDirection === 'down' ? 'down' : null);
-                    break;
-                case 'ArrowLeft':
-                    this.move(this.fireEntryDirection === 'left' ? 'left' : null);
-                    break;
-                case 'ArrowRight':
-                    this.move(this.fireEntryDirection === 'right' ? 'right' : null);
-                    break;
-                default:
-                    return;  // Ignore all other keys
-            }
-        } else {
-            switch (event.key) {
-                case 'ArrowUp':
-                case 'Numpad8':
-                    this.move('up');
-                    break;
-                case 'ArrowDown':
-                case 'Numpad2':
-                    this.move('down');
-                    break;
-                case 'ArrowLeft':
-                case 'Numpad4':
-                    this.move('left');
-                    break;
-                case 'ArrowRight':
-                case 'Numpad6':
-                    this.move('right');
-                    break;
-            }
-        
-            // Handle diagonal movement
-            switch (event.code) {
-                case 'Numpad7':
-                    this.move('up-left');
-                    break;
-                case 'Numpad9':
-                    this.move('up-right');
-                    break;
-                case 'Numpad1':
-                    this.move('down-left');
-                    break;
-                case 'Numpad3':
-                    this.move('down-right');
-                    break;
-            }
+        if (this.isDead) return;
+    
+        let newDirection = null;
+        switch (event.key) {
+            case 'ArrowUp':
+            case 'Numpad8':
+                newDirection = 'up';
+                break;
+            case 'ArrowDown':
+            case 'Numpad2':
+                newDirection = 'down';
+                break;
+            case 'ArrowLeft':
+            case 'Numpad4':
+                newDirection = 'left';
+                break;
+            case 'ArrowRight':
+            case 'Numpad6':
+                newDirection = 'right';
+                break;
+            default:
+                break;
         }
-
+    
+        // If the player was attempting to enter the fire and chooses the same direction
+        if (this.attemptingFireEntry && newDirection === this.fireEntryDirection) {
+            this.move(newDirection);
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
+            return;
+        } else if (this.attemptingFireEntry) {
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
+            // Don't return here. Let it handle the new direction input as regular movement
+        }
+    
+        // The rest of the method should handle regular movement input
+        switch (event.key) {
+            case 'ArrowUp':
+            case 'Numpad8':
+                this.move('up');
+                break;
+            case 'ArrowDown':
+            case 'Numpad2':
+                this.move('down');
+                break;
+            case 'ArrowLeft':
+            case 'Numpad4':
+                this.move('left');
+                break;
+            case 'ArrowRight':
+            case 'Numpad6':
+                this.move('right');
+                break;
+            default:
+                break;
+        }
+    
+        // Handle diagonal movement
+        switch (event.code) {
+            case 'Numpad7':
+                this.move('up-left');
+                break;
+            case 'Numpad9':
+                this.move('up-right');
+                break;
+            case 'Numpad1':
+                this.move('down-left');
+                break;
+            case 'Numpad3':
+                this.move('down-right');
+                break;
+            default:
+                break;
+        }
+    
         // Ensure that we only unlock the engine if it's locked
-        
-        
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
     }
+    
 
     pickUpItem(item, x, y) {
         // Remove the item from the object map and the game container
         objectMap[y][x] = null;
         gameContainer.removeChild(item.sprite);
-        
+    
+        // Move the player to the item's position
+        this.updatePosition(x, y); // Add this line to update the player's position
+    
         // Add the item to the player's inventory
         this.inventory.push(item);
-
+    
         // Log a message about the item picked up
         this.messageList.addMessage(`You picked up a ${item.name}.`);
     }
