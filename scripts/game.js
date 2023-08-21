@@ -1558,7 +1558,7 @@ class Door {
                 if (player && player.isAdjacentTo(this.x, this.y)) {
                     // Check if door is locked and if player has the right key
                     if (this.isLocked) {
-                        const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === this.id);
+                        const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === door.id);
                         if (keyItem) {
                             this.unlock();
                             player.removeItem(keyItem); // Assuming the Player class has a removeItem method
