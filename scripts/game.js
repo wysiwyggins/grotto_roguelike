@@ -363,7 +363,7 @@ class Player {
             } else {
                 // Player doesn't have the right key
                 messageList.addMessage(`The ${door.name} door is locked.`);
-                return;
+                return true;
             }
         }
         return false;
