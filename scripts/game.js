@@ -354,8 +354,17 @@ class Player {
 
     isLockedDoor(door) {
         if (door && door.isLocked) {
-            this.messageList.addMessage("The door is locked!");
-            return true;
+            const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === door.id);
+            if (keyItem) {
+                door.unlock();
+                player.removeItem(keyItem);
+                messageList.addMessage(`You unlocked the ${door.name} door with your key.`);
+                return;
+            } else {
+                // Player doesn't have the right key
+                messageList.addMessage(`The ${door.name} door is locked.`);
+                return;
+            }
         }
         return false;
     }
