@@ -303,10 +303,17 @@ class Player {
             return;  // Exit after handling the door.
         }
     
+        // Handle fire tile effects
         this.handleTileEffects(newTileX, newTileY, direction);
-        this.checkForItems(newTileX, newTileY);
-        this.updateSprites(newTileX, newTileY);
+        
+        // If the player did not attempt to enter fire or if they attempted and then changed direction, proceed with the move.
+        if (!this.attemptingFireEntry || (this.attemptingFireEntry && this.fireEntryDirection !== direction)) {
+            this.updatePosition(newTileX, newTileY);
+            this.checkForItems(newTileX, newTileY);
+            this.updateSprites(newTileX, newTileY);
+        }
     }
+    
     
 
     getDeltaXY(direction) {
@@ -374,17 +381,24 @@ class Player {
     }
 
     handleTileEffects(newTileX, newTileY, direction) {
+        // Check if player has changed direction after fire warning
+        if (this.attemptingFireEntry && this.fireEntryDirection !== direction) {
+            console.log("Direction changed after fire warning");
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
+        }
+    
         let atmosphereTileValue = atmosphereMap[newTileY][newTileX]?.value;
         console.log(`Checking fire at (${newTileX}, ${newTileY}): `, atmosphereTileValue);
         let floorTileValue = floorMap[newTileY][newTileX]?.value;
         let objectTileValue = objectMap[newTileY][newTileX]?.value;
-        
+    
         // If not attempting to enter the fire, reset fire entry-related flags
         if (atmosphereTileValue !== 300) {
             this.attemptingFireEntry = false;
             this.fireEntryDirection = null;
         }
-        
+    
         if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
             this.x = newTileX;
             this.y = newTileY;
@@ -402,6 +416,8 @@ class Player {
             this.fireEntryDirection = null;
         }
     }
+    
+    
     
 
     checkForItems(x, y) {
