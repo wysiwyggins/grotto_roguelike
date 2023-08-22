@@ -359,7 +359,7 @@ class Player {
                 door.unlock();
                 player.removeItem(keyItem);
                 messageList.addMessage(`You unlocked the ${door.name} door with your key.`);
-                return;
+                return false;
             } else {
                 // Player doesn't have the right key
                 messageList.addMessage(`The ${door.name} door is locked.`);
@@ -956,7 +956,7 @@ class Monster {
                         let x = point.x;
                         let y = point.y;
                         // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (objectMap[y] && objectMap[y][x])) {
+                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x])) {
                             seen = false;
                         }
                     }
@@ -1558,7 +1558,7 @@ class Door {
                 if (player && player.isAdjacentTo(this.x, this.y)) {
                     // Check if door is locked and if player has the right key
                     if (this.isLocked) {
-                        const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === door.id);
+                        const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === this.id);
                         if (keyItem) {
                             this.unlock();
                             player.removeItem(keyItem); // Assuming the Player class has a removeItem method
@@ -1610,9 +1610,11 @@ class Door {
         if (this.isOpen) {
             this.close();
             messageList.addMessage("You close a door.")
+            this.updateDoorStateInMap(100);
         } else {
             this.open();
             messageList.addMessage("You open a door.")
+            this.updateDoorStateInMap(null);
         }
     }
     open() {
