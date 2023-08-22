@@ -1,0 +1,32 @@
+{
+  "src": "grottoAudiosprite.ogg",
+  "data": {
+    "audioSprite": [
+      {
+        "id": "door",
+        "startTime": 0,
+        "duration": 2969.1609977324265
+      },
+      {
+        "id": "feets",
+        "startTime": 4000,
+        "duration": 1483.0839002267578
+      },
+      {
+        "id": "fireball",
+        "startTime": 7000,
+        "duration": 2969.160997732427
+      },
+      {
+        "id": "levelout",
+        "startTime": 11000,
+        "duration": 2969.160997732427
+      },
+      {
+        "id": "magic",
+        "startTime": 15000,
+        "duration": 5941.315192743766
+      }
+    ]
+  }
+}
