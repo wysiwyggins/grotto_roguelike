@@ -378,31 +378,31 @@ class Player {
         console.log(`Checking fire at (${newTileX}, ${newTileY}): `, atmosphereTileValue);
         let floorTileValue = floorMap[newTileY][newTileX]?.value;
         let objectTileValue = objectMap[newTileY][newTileX]?.value;
-        //checks for fire etc
+        
+        // If not attempting to enter the fire, reset fire entry-related flags
+        if (atmosphereTileValue !== 300) {
+            this.attemptingFireEntry = false;
+            this.fireEntryDirection = null;
+        }
+        
         if (floorTileValue === 157 && (!objectTileValue && atmosphereTileValue != 300)) {
             this.x = newTileX;
             this.y = newTileY;
-            this.attemptingFireEntry = false;
-            this.fireEntryDirection = null;
-        } else if (atmosphereTileValue === 300) {  
-            if (this.attemptingFireEntry && this.fireEntryDirection === direction) {
-                this.x = newTileX;
-                this.y = newTileY;
-                this.isBurning = true;
-                this.burningTurns = 0;
-                this.messageList.addMessage("You stepped into fire!");
-                this.attemptingFireEntry = false;
-                this.fireEntryDirection = null;
-            } else {
-                this.attemptingFireEntry = true;
-                this.fireEntryDirection = direction;
-                this.messageList.addMessage("Walk into the fire?");
-            }
-        } else {
+        } else if (atmosphereTileValue === 300 && !this.attemptingFireEntry) {  
+            this.attemptingFireEntry = true;
+            this.fireEntryDirection = direction;
+            this.messageList.addMessage("Walk into the fire?");
+        } else if (atmosphereTileValue === 300 && this.attemptingFireEntry && this.fireEntryDirection === direction) {
+            this.x = newTileX;
+            this.y = newTileY;
+            this.isBurning = true;
+            this.burningTurns = 0;
+            this.messageList.addMessage("You stepped into fire!");
             this.attemptingFireEntry = false;
             this.fireEntryDirection = null;
         }
     }
+    
 
     checkForItems(x, y) {
         let item = objectMap[y][x]?.item;
@@ -603,7 +603,6 @@ class Player {
 
     handleKeydown(event) {
         if (this.isDead) return;
-    
         let newDirection = null;
         switch (event.key) {
             case 'ArrowUp':
@@ -622,67 +621,31 @@ class Player {
             case 'Numpad6':
                 newDirection = 'right';
                 break;
-            default:
-                break;
-        }
-    
-        // If the player was attempting to enter the fire and chooses the same direction
-        if (this.attemptingFireEntry && newDirection === this.fireEntryDirection) {
-            this.move(newDirection);
-            this.attemptingFireEntry = false;
-            this.fireEntryDirection = null;
-            return;
-        } else if (this.attemptingFireEntry) {
-            this.attemptingFireEntry = false;
-            this.fireEntryDirection = null;
-            // Don't return here. Let it handle the new direction input as regular movement
-        }
-    
-        // The rest of the method should handle regular movement input
-        switch (event.key) {
-            case 'ArrowUp':
-            case 'Numpad8':
-                this.move('up');
-                break;
-            case 'ArrowDown':
-            case 'Numpad2':
-                this.move('down');
-                break;
-            case 'ArrowLeft':
-            case 'Numpad4':
-                this.move('left');
-                break;
-            case 'ArrowRight':
-            case 'Numpad6':
-                this.move('right');
-                break;
-            default:
-                break;
-        }
-    
-        // Handle diagonal movement
-        switch (event.code) {
             case 'Numpad7':
-                this.move('up-left');
+                newDirection = 'up-left';
                 break;
             case 'Numpad9':
-                this.move('up-right');
+                newDirection = 'up-right';
                 break;
             case 'Numpad1':
-                this.move('down-left');
+                newDirection = 'down-left';
                 break;
             case 'Numpad3':
-                this.move('down-right');
+                newDirection = 'down-right';
                 break;
             default:
                 break;
         }
+        
+        if (newDirection) {
+            this.move(newDirection);
+        }
     
-        // Ensure that we only unlock the engine if it's locked
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
     }
+    
     
 
     pickUpItem(item, x, y) {
