@@ -1,32 +1,35 @@
 {
-  "src": "grottoAudiosprite.ogg",
-  "data": {
-    "audioSprite": [
-      {
-        "id": "door",
-        "startTime": 0,
-        "duration": 2969.1609977324265
-      },
-      {
-        "id": "feets",
-        "startTime": 4000,
-        "duration": 1483.0839002267578
-      },
-      {
-        "id": "fireball",
-        "startTime": 7000,
-        "duration": 2969.160997732427
-      },
-      {
-        "id": "levelout",
-        "startTime": 11000,
-        "duration": 2969.160997732427
-      },
-      {
-        "id": "magic",
-        "startTime": 15000,
-        "duration": 5941.315192743766
-      }
-    ]
+  "resources": [
+    "grottoAudiosprite.ogg",
+    "grottoAudiosprite.m4a",
+    "grottoAudiosprite.mp3",
+    "grottoAudiosprite.ac3"
+  ],
+  "spritemap": {
+    "door": {
+      "start": 0,
+      "end": 2.9691609977324265,
+      "loop": false
+    },
+    "feets": {
+      "start": 4,
+      "end": 5.483083900226758,
+      "loop": false
+    },
+    "fireball": {
+      "start": 7,
+      "end": 9.969160997732427,
+      "loop": false
+    },
+    "levelout": {
+      "start": 11,
+      "end": 13.969160997732427,
+      "loop": false
+    },
+    "magic": {
+      "start": 15,
+      "end": 20.941315192743765,
+      "loop": false
+    }
   }
 }
