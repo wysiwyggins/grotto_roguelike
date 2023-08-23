@@ -72,8 +72,11 @@ var players = [];
 let activeEntities = [];
 var messageList;
 var inspector;
-var sound;
-var spriteData;
+let sound;
+let audioUnlocked = false;
+document.addEventListener('click', unlockAudio, { once: true });
+document.addEventListener('keypress', unlockAudio, { once: true });
+
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
@@ -120,7 +123,6 @@ PIXI.Loader.shared.onComplete.add(() => {
 //console.log(smokeFrames);
 
 //howler.js object for our sound sprites goes here:
-Howler.volume(1.0);
 fetch('assets/sound/grottoAudiosprite.json')
     .then(response => response.json())
     .then(spriteData => {
@@ -129,7 +131,17 @@ fetch('assets/sound/grottoAudiosprite.json')
                 'assets/sound/grottoAudiosprite.ogg',
                 'assets/sound/grottoAudiosprite.mp3'
             ], 
-            sprite: spriteData
+            sprite: spriteData,
+            preload: true  // This should be inside the Howl object.
+        });
+
+        // Now, the 'sound' object is available and can have event listeners attached.
+        sound.on('load', function() {
+            console.log('Sounds loaded!');
+        });
+
+        sound.on('loaderror', function(id, error) {
+            console.error('Load error', error);
         });
 
         // To play a specific sound from your audiosprite:
@@ -138,23 +150,34 @@ fetch('assets/sound/grottoAudiosprite.json')
     .catch(error => {
         console.error("There was an error fetching the audiosprite JSON:", error);
     });
-  
-
-function playFootstepSound() {
-    sound.play('feets');
-    console.log('footstep sound');
-}
-
-function playFireballSound() {
-    sound.play('fireball');
-    console.log('fireball sound');
-}
-
-function playDoorSound() {
-    sound.play('door');
-    console.log('door sound');
-}
-
+    function unlockAudio() {
+        // Play a silent sound
+        sound.play('silent'); // You'd have to add a silent short duration in your audiosprite
+    
+        audioUnlocked = true;
+    }
+    
+    function playFootstepSound() {
+        if (audioUnlocked) {
+            sound.play('feets');
+            console.log('footstep sound');
+        }
+    }
+    
+    function playFireballSound() {
+        if (audioUnlocked) {
+            sound.play('fireball');
+            console.log('fireball sound');
+        }
+    }
+    
+    function playDoorSound() {
+        if (audioUnlocked) {
+            sound.play('door');
+            console.log('door sound');
+        }
+    }
+    
 // there are different player sprites for PLayerTypes, not yet used, might be removed
 
 const PlayerType = Object.freeze({
@@ -322,6 +345,7 @@ class Player {
             if (this.isOpenableDoor(door)) {
                 // If the door can be opened, open it, but don't move player yet.
                 door.open();
+                playDoorSound();
             }
             // Now, move the player onto the door's tile, whether the door was already open or just opened.
             this.updatePosition(newTileX, newTileY);
@@ -336,6 +360,7 @@ class Player {
         if (!this.attemptingFireEntry || (this.attemptingFireEntry && this.fireEntryDirection !== direction)) {
             this.x = newTileX;
             this.y = newTileY;
+            playFootstepSound();
             this.checkForItems(newTileX, newTileY);
             this.updateSprites();
         }
@@ -454,11 +479,12 @@ class Player {
     }
 
     updatePosition(newTileX, newTileY) {
+        //console.log('update player position');
         this.prevX = this.x;
         this.prevY = this.y;
         this.x = newTileX;
         this.y = newTileY;
-        playFootstepSound();
+        
     }
 
     updateSprites(newTileX, newTileY) {
