@@ -311,6 +311,9 @@ class Player {
         let [dx, dy] = this.getDeltaXY(direction);
         let [newTileX, newTileY] = [this.x + dx, this.y + dy];
         
+        // Update player's position first
+        this.updatePosition(newTileX, newTileY);
+        
         if (this.isOutOfBounds(newTileX, newTileY)) return;
         
         if (!this.isWalkableTile(newTileX, newTileY)) return;
@@ -323,8 +326,7 @@ class Player {
                 // If the door can be opened, open it, but don't move player yet.
                 door.open();
             }
-            // Now, move the player onto the door's tile, whether the door was already open or just opened.
-            this.updatePosition(newTileX, newTileY);
+            // Now, update the sprites for the player's new position
             this.updateSprites(newTileX, newTileY);
             return;  // Exit after handling the door.
         }
@@ -334,12 +336,10 @@ class Player {
         
         // If the player did not attempt to enter fire or if they attempted and then changed direction, proceed with the move.
         if (!this.attemptingFireEntry || (this.attemptingFireEntry && this.fireEntryDirection !== direction)) {
-            this.updatePosition(newTileX, newTileY);
             this.checkForItems(newTileX, newTileY);
             this.updateSprites(newTileX, newTileY);
         }
     }
-    
     
 
     getDeltaXY(direction) {
@@ -498,12 +498,12 @@ class Player {
                 }
             }
         }
-        this.prevX = this.x;
-        this.prevY = this.y;
-        
         // Update the current position
         this.x = newTileX;
         this.y = newTileY;
+
+        this.prevX = this.x;
+        this.prevY = this.y;
         // Occlude nearby wall and UI sprites
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
