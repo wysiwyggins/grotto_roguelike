@@ -72,10 +72,6 @@ var players = [];
 let activeEntities = [];
 var messageList;
 var inspector;
-let sound;
-let audioUnlocked = false;
-document.addEventListener('click', unlockAudio, { once: true });
-document.addEventListener('keypress', unlockAudio, { once: true });
 
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
@@ -123,60 +119,28 @@ PIXI.Loader.shared.onComplete.add(() => {
 //console.log(smokeFrames);
 
 //howler.js object for our sound sprites goes here:
-fetch('assets/sound/grottoAudiosprite.json')
-    .then(response => response.json())
-    .then(spriteData => {
-        sound = new Howl({
-            src: [
-                'assets/sound/grottoAudiosprite.ogg',
-                'assets/sound/grottoAudiosprite.mp3'
-            ], 
-            sprite: spriteData,
-            preload: true  // This should be inside the Howl object.
-        });
+var sound = new Howl({
+    src: ['../assets/sound/grottoAudiosprite.ogg', '../assets/sound/grottoAudiosprite.mp3'],
+    sprite: {
+      door: [0, 2900],
+      feets: [4000, 1483],
+      fireball: [7000, 1969]
+    }
+  });
+  
+sound.play('fireball');
 
-        // Now, the 'sound' object is available and can have event listeners attached.
-        sound.on('load', function() {
-            console.log('Sounds loaded!');
-        });
+function playDoorSound() {
+    sound.play('door');
+};
 
-        sound.on('loaderror', function(id, error) {
-            console.error('Load error', error);
-        });
+function playFootstepSound() {
+        sound.play('feets');
+};
 
-        // To play a specific sound from your audiosprite:
-        // sound.play('nameOfSpecificSound');
-    })
-    .catch(error => {
-        console.error("There was an error fetching the audiosprite JSON:", error);
-    });
-    function unlockAudio() {
-        // Play a silent sound
-        sound.play('silent'); // You'd have to add a silent short duration in your audiosprite
-    
-        audioUnlocked = true;
-    }
-    
-    function playFootstepSound() {
-        if (audioUnlocked) {
-            sound.play('feets');
-            console.log('footstep sound');
-        }
-    }
-    
-    function playFireballSound() {
-        if (audioUnlocked) {
-            sound.play('fireball');
-            console.log('fireball sound');
-        }
-    }
-    
-    function playDoorSound() {
-        if (audioUnlocked) {
-            sound.play('door');
-            console.log('door sound');
-        }
-    }
+function playFireballSound() {
+    sound.play('fireball');
+}
     
 // there are different player sprites for PLayerTypes, not yet used, might be removed
 
@@ -344,6 +308,7 @@ class Player {
         if (door) {
             if (this.isOpenableDoor(door)) {
                 // If the door can be opened, open it, but don't move player yet.
+
                 door.open();
                 playDoorSound();
             }
@@ -430,7 +395,7 @@ class Player {
     }
 
     isOpenableDoor(door) {
-        return door && !door.isLocked;
+        return door && !door.isLocked && !door.isOpen;
     }
 
     handleTileEffects(newTileX, newTileY, direction) {
