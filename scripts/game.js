@@ -44,6 +44,7 @@ const SPRITESHEET_ROWS = 11;
 //dungeon is used by rot.js' dungeon drawing functions, we need a global stub to get things like
 //door locations
 let dungeon = null;
+let currentTreasureRoom; // right now one room has locked doors.
 //console.log('Initializing maps');
 // maps are arrays that I am using really messily. they have a value which is a number
 // that started out as the number of the tile being displayed, but I also use it for game logic
@@ -1856,6 +1857,8 @@ async function addDoors() {
     const treasureRoomIndex = Math.floor(Math.random() * rooms.length);
     const treasureRoom = rooms[treasureRoomIndex];
 
+    currentTreasureRoom = treasureRoom; //save the treasure room for later
+
     treasureRoom.getDoors((x, y) => {
         const colorIndex = Math.floor(Math.random() * colors.length); 
         const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
@@ -1876,8 +1879,24 @@ async function addDoors() {
             });
         }
     }
+    return treasureRoom;
 }
 
+
+function isTileInTreasureRoom(tile, treasureRoom) {
+    if (!currentTreasureRoom) {
+        return false;
+    }
+
+    return tile.x >= currentTreasureRoom.getLeft() && tile.x <= currentTreasureRoom.getRight() &&
+           tile.y >= currentTreasureRoom.getTop() && tile.y <= currentTreasureRoom.getBottom();
+}
+
+
+function isTileWithDoor(tile, doorMap) {
+    // Check if there's any door at the given tile's coordinates
+    return doorMap[tile.y][tile.x] !== null && doorMap[tile.y][tile.x] !== undefined;
+}
 function placeKeyForDoor(door, doorName) {
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -2328,19 +2347,26 @@ function setup() {
     dungeonGeneration();
     addFloorsAndVoid();
     evaluateMapAndCreateWalls();
-    addBaseAndShadows();
-
-
+    addBaseAndShadows();    
     let walkableTiles = [];
+    let publicTiles = []
+
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
             if (floorMap[y][x].value === 157) {
                 walkableTiles.push({x: x, y: y});
+                let tile = {x: x, y: y};
+    
+                // If the tile is neither in the treasure room nor has a door, then it's public
+                if (!isTileInTreasureRoom(tile, currentTreasureRoom)) {
+                    publicTiles.push({x: tile.x,y: tile.y});
+                } 
             }
         }
     }
-
-    let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    
+    console.log(publicTiles.length);
+    let randomTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
