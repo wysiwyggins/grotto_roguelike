@@ -45,6 +45,8 @@ const SPRITESHEET_ROWS = 11;
 //door locations
 let dungeon = null;
 let currentTreasureRoom; // right now one room has locked doors.
+let globalDoorCounter = 0;
+
 //console.log('Initializing maps');
 // maps are arrays that I am using really messily. they have a value which is a number
 // that started out as the number of the tile being displayed, but I also use it for game logic
@@ -714,7 +716,7 @@ class Player {
             }
     
             // Check if player is dead
-            if (this.blood < 1 && this.blood > -50) {
+            if (this.blood < 1 && this.blood > -100) {
                 this.messageList.addMessage("You are dead!");
                 this.type = PlayerType.SKELETON;
                 this.isDead = true;
@@ -723,7 +725,7 @@ class Player {
                 this.skeletonize();
             }
             // Check if player is REALLY dead
-            if (this.blood <= -50) {
+            if (this.blood <= -100) {
                 this.type = PlayerType.PILE;
                 this.isDead = true;
     
@@ -1727,6 +1729,7 @@ function checkGameState() {
         let isSomeoneCanAct = activeEntities.some(entity => typeof entity.act === 'function');
         // If no one can act, and game over flag is not set yet, show the message and stop the game
         if (!isSomeoneCanAct && !gameOver) {
+            
             messageList.addMessage("The dungeon is still");
             engine.lock();
             gameOver = true; // Set game over flag to true
@@ -1736,6 +1739,7 @@ function checkGameState() {
             messageList.addMessage("Time passes.");
             if (engine._lock){
                 delayedAdvanceTurn();
+                player.blood -= 1;
                 messageList.addDotToEndOfLastMessage();
             }
         }
@@ -1927,11 +1931,11 @@ async function addDoors() {
     treasureRoom.getDoors((x, y) => {
         const colorIndex = Math.floor(Math.random() * colors.length); 
         const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
-        let door = new Door(treasureRoomIndex, x, y, colorValue, true);  // Locked door
-        door.name = capitalizeFirstLetter(colors[colorIndex].color) + " door";
+        let door = new Door(globalDoorCounter++, x, y, colorValue, true);  // Locked door with unique ID
+        door.name = capitalizeFirstLetter(colors[colorIndex].color) + " door ";
         placeKeyForDoor(door, colors[colorIndex].color);  // Add a key for this door
     });
-
+    
     for (let i = 0; i < rooms.length; i++) {
         if (i !== treasureRoomIndex) {  // Skip the treasure room
             const room = rooms[i];
@@ -1939,7 +1943,7 @@ async function addDoors() {
                 if (Math.random() >= 0.5) {  // 50% chance for a door
                     const colorIndex = Math.floor(Math.random() * colors.length); 
                     const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
-                    new Door(i, x, y, colorValue);  // Unlocked door
+                    new Door(globalDoorCounter++, x, y, colorValue);  // Unlocked door with unique ID
                 }
             });
         }
