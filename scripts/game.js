@@ -129,7 +129,7 @@ var sound = new Howl({
     }
   });
   
-sound.play('fireball');
+
 
 function playDoorSound() {
     sound.play('door');
@@ -154,7 +154,8 @@ const PlayerType = Object.freeze({
     "OBELISK": 5,
     "FUNGUS": 6,
     "SKELETON" : 7,
-    "VEGETABLE": 8
+    "VEGETABLE": 8,
+    "PILE": 9
     
 });
 
@@ -236,8 +237,12 @@ class Player {
                 this.footprintPosition = {x: 8, y: 7};
                 this.headPosition = {x: 9, y: 7};  
                 break;
+            case PlayerType.PILE:
+                this.footprintPosition = {x: 7, y: 1};
+                this.headPosition = {x: 0, y: 0};  
+                break;
             default:
-                this.footprintPosition = {x: 10, y: 5};
+                this.footprintPosition = {x: 8, y: 5};
                 this.headPosition = {x: 1, y: 0};
                 break;
         }
@@ -709,13 +714,21 @@ class Player {
             }
     
             // Check if player is dead
-            if (this.blood < 1) {
+            if (this.blood < 1 && this.blood > -50) {
                 this.messageList.addMessage("You are dead!");
                 this.type = PlayerType.SKELETON;
                 this.isDead = true;
     
                 // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
                 this.skeletonize();
+            }
+            // Check if player is REALLY dead
+            if (this.blood <= -50) {
+                this.type = PlayerType.PILE;
+                this.isDead = true;
+    
+                // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
+                this.incinerate();
             }
         }
     }
@@ -729,6 +742,34 @@ class Player {
             case PlayerType.SKELETON:
                 footprintPosition = {x: 8, y: 7};
                 headPosition = {x: 9, y: 7}; 
+                break;
+            default:
+                footprintPosition = {x: 10, y: 5};
+                headPosition = {x: 1, y: 0};
+                break;
+        }
+        let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            footprintPosition.x * TILE_WIDTH, 
+            footprintPosition.y * TILE_HEIGHT, 
+            TILE_WIDTH, TILE_HEIGHT));
+        let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+            headPosition.x * TILE_WIDTH, 
+            headPosition.y * TILE_HEIGHT, 
+            TILE_WIDTH, TILE_HEIGHT));
+    
+        this.sprite.footprint.texture = footprintTexture;
+        this.sprite.overlay.texture = overlayTexture;
+    };
+    incinerate() {
+        let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+        
+        // Use player type to decide on sprites.
+        let footprintPosition, headPosition;
+        switch(this.type) {
+            // Add your other cases here.
+            case PlayerType.PILE:
+                footprintPosition = {x: 7, y: 1};
+                headPosition = {x: 0, y: 0}; 
                 break;
             default:
                 footprintPosition = {x: 10, y: 5};
@@ -872,6 +913,7 @@ const Attacks = {
                 monster.scheduler.add(fire, true);
             }
         }
+        sound.play('fireball');
         messageList.addMessage("The {0} breathes flames!", [monster.name]);
     },
     // Add other attacks here
@@ -1620,6 +1662,7 @@ class Door {
             const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
             this.updateSprites(openSpriteIndices);
             this.isOpen = true;
+            playDoorSound();
         }
     }
 
@@ -1806,6 +1849,28 @@ function createVoid(x, y) {
     sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
 }
+
+function createChasmWall(x, y) {
+    createSprite(x, y, {x: 16, y: 7}, backgroundMap, 177);
+
+    let sprite = backgroundMap[y][x].sprite;
+
+    // Set the transformation origin to the center of the sprite
+    sprite.anchor.set(0.5, 0.5);
+
+    // Randomly flip the sprite horizontally or vertically
+    let randomFlip = Math.random(); // Generates a random number between 0 (inclusive) and 1 (exclusive)
+    if (randomFlip < 0.25) {
+        sprite.scale.x *= -1; // Flip horizontally
+    } else if (randomFlip < 0.5) {
+        sprite.scale.y *= -1; // Flip vertically
+    }
+
+    // Adjust sprite's position due to anchor change
+    sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
+    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
+}
+
 
 
 function createFloor(x, y) {
@@ -2096,6 +2161,7 @@ function addBaseAndShadows() {
                     let xPos = x; // Start checking from the tile to the right of the current tile
                     while (y > 1 && xPos < MAP_WIDTH -1 && floorMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 131 && backgroundMap[y][xPos].value === 216 && (isAbove(floorMap,xPos,y,177) || isAbove(backgroundMap,xPos,y,177))) {
                         createSprite(xPos, y, {x: 16, y: 7},backgroundMap, 177);
+                        createChasmWall(xPos,y);
                         xPos++; // Move to the next tile to the right
                     }
                 }
