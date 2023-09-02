@@ -1,0 +1,85 @@
+{
+  "resources": [
+    "grottoAudiosprite.ogg",
+    "grottoAudiosprite.m4a",
+    "grottoAudiosprite.mp3",
+    "grottoAudiosprite.ac3"
+  ],
+  "spritemap": {
+    "arrow_hit": {
+      "start": 0,
+      "end": 2.9691609977324265,
+      "loop": false
+    },
+    "arrow_miss": {
+      "start": 4,
+      "end": 6.969160997732427,
+      "loop": false
+    },
+    "feets": {
+      "start": 8,
+      "end": 8.418390022675737,
+      "loop": false
+    },
+    "fireball": {
+      "start": 10,
+      "end": 12.969160997732427,
+      "loop": false
+    },
+    "hallway": {
+      "start": 14,
+      "end": 16,
+      "loop": false
+    },
+    "heal": {
+      "start": 17,
+      "end": 19.969160997732427,
+      "loop": false
+    },
+    "hit": {
+      "start": 21,
+      "end": 23.969160997732427,
+      "loop": false
+    },
+    "levelout": {
+      "start": 25,
+      "end": 27.969160997732427,
+      "loop": false
+    },
+    "lock": {
+      "start": 29,
+      "end": 40.88562358276644,
+      "loop": false
+    },
+    "magic": {
+      "start": 42,
+      "end": 47.941315192743765,
+      "loop": false
+    },
+    "ouch": {
+      "start": 49,
+      "end": 53.455238095238094,
+      "loop": false
+    },
+    "pickup": {
+      "start": 55,
+      "end": 59.455238095238094,
+      "loop": false
+    },
+    "plunk1": {
+      "start": 61,
+      "end": 63.96916099773242,
+      "loop": false
+    },
+    "plunk2": {
+      "start": 65,
+      "end": 75.39954648526077,
+      "loop": false
+    },
+    "plunk3": {
+      "start": 77,
+      "end": 86.77907029478457,
+      "loop": false
+    }
+  }
+}

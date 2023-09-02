@@ -121,18 +121,36 @@ PIXI.Loader.shared.onComplete.add(() => {
 
 //howler.js object for our sound sprites goes here:
 var sound = new Howl({
-    src: ['../assets/sound/grottoAudiosprite.ogg', '../assets/sound/grottoAudiosprite.mp3'],
+    src: [
+      '../assets/sound/grottoAudiosprite.ogg', 
+      '../assets/sound/grottoAudiosprite.m4a', 
+      '../assets/sound/grottoAudiosprite.mp3', 
+      '../assets/sound/grottoAudiosprite.ac3'
+    ],
     sprite: {
-      door: [0, 2900],
-      feets: [4000, 1483],
-      fireball: [7000, 1969]
-    }
+        arrow_hit: [0, 2969],
+        arrow_miss: [4000, 2969],
+        feets: [8000, 418],
+        fireball: [10000, 2969],
+        hallway: [14000, 2000],
+        heal: [17000, 2969],
+        hit: [21000, 2969],
+        levelout: [25000, 2969],
+        lock: [29000, 11886],
+        magic: [42000, 5941],
+        ouch: [49000, 4455],
+        pickup: [55000, 4455],
+        plunk1: [61000, 2969],
+        plunk2: [65000, 10399],
+        plunk3: [77000, 9779]
+      }
   });
   
-sound.play('fireball');
+  
+
 
 function playDoorSound() {
-    sound.play('door');
+    sound.play('plunk3');
 };
 
 function playFootstepSound() {
@@ -384,6 +402,7 @@ class Player {
             if (keyItem) {
                 door.unlock();
                 player.removeItem(keyItem);
+                sound.play('lock');
                 messageList.addMessage(`You unlocked the ${door.name} door with your key.`);
                 return false;
             } else {
@@ -699,6 +718,7 @@ class Player {
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
+            sound.play('ouch');
             this.burningTurns++;
             this.messageList.addMessage("You are on fire!");
             
