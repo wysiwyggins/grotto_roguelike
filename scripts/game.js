@@ -157,6 +157,13 @@ function playDoorSound() {
 function playFootstepSound() {
     sound.play('feets');
 };
+function playArrowSound(didHit) {
+    if (didHit) {
+        sound.play('arrow_hit');
+    } else {    
+        sound.play('arrow_miss');
+    }
+};
 
 function playPickupSound() {
     sound.play('pickup');
@@ -323,17 +330,26 @@ class Player {
         event.preventDefault();
 
         // calculate tile coordinates from pixel coordinates
-        // use relative positions since we center the canvas with css
+        // use relative positions since we center the canvas with CSS
         let relativeX = event.clientX - rect.left;
         let relativeY = event.clientY - rect.top;
 
         let x = Math.floor(relativeX / (TILE_WIDTH * SCALE_FACTOR));
-    let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
+        let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
 
-        // make sure the click is inside the map
-        if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
-            this.messageList.addMessage("Walking.");
-            this.moveTo(x, y);
+        // If player is in targeting mode
+        if (this.isTargeting) {
+            this.performArrowAttack(x, y);
+            this.isTargeting = false;
+            this.removeTargetingSprite();
+        } 
+        // If the player is not in targeting mode
+        else {
+            // make sure the click is inside the map
+            if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+                this.messageList.addMessage("Walking.");
+                this.moveTo(x, y);
+            }
         }
     }    
     //moving with arrow keys
@@ -748,6 +764,65 @@ class Player {
             this.messageList.addMessage("Aim bow at?");
         }
     }
+
+    performArrowAttack(targetX, targetY) {
+        // Check if player has enough arrows
+        if (this.arrows <= 0) {
+            this.messageList.addMessage("You have no arrows left.");
+            return;
+        }
+        
+        // Draw a line from the player's position to the target's position
+        let path = line({ x: this.x, y: this.y }, { x: targetX, y: targetY });
+        
+        let arrowX = this.x;
+        let arrowY = this.y;
+        let monsterHit = null;
+        
+        for (let point of path) {
+            let x = point.x;
+            let y = point.y;
+
+            // Check if there's a wall or door at this point
+            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x])) {
+                break;
+            }
+
+            // Check if there's a monster at this point
+            /* let monster = // logic to find monster at (x, y) ;
+            if (monster) {
+                monsterHit = monster;
+                arrowX = x;
+                arrowY = y;
+                break;
+            } */
+
+            // If not, then this is the new arrow position
+            arrowX = x;
+            arrowY = y;
+        }
+        
+        // Create the arrow sprite at the final position
+        setTimeout(function() {
+            new Item(ItemType.ARROW,arrowX, arrowY, '0xFFFFFF', 2);
+            engine.unlock();
+        }, 700);
+        
+
+        // Decrement player's arrows by 1
+        this.arrows--;
+        
+        if (monsterHit) {
+            // Deal damage to the monster
+            monsterHit.takeDamage(/* Damage amount */);
+            this.messageList.addMessage("You hit the monster!");
+            playArrowSound(true);
+        } else {
+            this.messageList.addMessage("You missed.");
+            playArrowSound(false);
+        } 
+    }
+    
     displayTargetingSprite(x, y) {
         this.targetingX = x;
         this.targetingY = y;
@@ -774,7 +849,9 @@ class Player {
         this.updatePosition(x, y); // Add this line to update the player's position
     
         // Add the item to the player's inventory
-        this.inventory.push(item);
+        if (item.type != ItemType.ARROW) {
+            this.inventory.push(item);
+        }
         if (item.type === ItemType.BOW || item.type === ItemType.ARROW) {
             this.arrows++;
         }
@@ -1563,7 +1640,7 @@ class Item {
                 this._name = 'Bow';
                 this._type = type;
                 this._tileIndex = {x: 13, y: 0};  // the tile indices on the spritesheet for the Bow
-                this._objectNumber = 100; // I was using this as a value for objectMap for game logic
+                this._objectNumber = 1; // I was using this as a value for objectMap for game logic
                 break;
             case ItemType.KEY:
                 this._name = `${name}`;
@@ -1576,8 +1653,8 @@ class Item {
             case ItemType.ARROW:
                 this._name = 'Arrow';
                 this._type = type;
-                this._tileIndex = {x: 3, y: 2};
-                this._objectNumber = 101;
+                this._tileIndex = {x: 3, y: 1};
+                this._objectNumber = 2;
                 break;
         }
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
