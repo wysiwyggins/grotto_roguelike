@@ -67,6 +67,8 @@ let atmosphereMap = createEmptyMap();
 let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
+
+let overlayMap = createEmptyMap();
 // the content of uiboxes
 
 let engine;
@@ -147,17 +149,18 @@ var sound = new Howl({
         plunk3: [77000, 9779]
       }
   });
-  
-  
-
 
 function playDoorSound() {
     sound.play('plunk3');
 };
 
 function playFootstepSound() {
-        sound.play('feets');
+    sound.play('feets');
 };
+
+function playPickupSound() {
+    sound.play('pickup');
+}
 
 function playFireballSound() {
     sound.play('fireball');
@@ -183,6 +186,8 @@ class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.name = "Bivoj";
         this.isDead = false;
+        this.isSkeletonized = false;
+        this.isTargeting = false;
         this.type = type;
         this.x = x;
         this.y = y;
@@ -213,11 +218,26 @@ class Player {
         window.addEventListener('mousedown', (event) => {
             this.handleClick(event);
         });
+        window.addEventListener('mousemove', (event) => {
+            if (this.isTargeting) {
+                // calculate tile coordinates from pixel coordinates
+                let relativeX = event.clientX - rect.left;
+                let relativeY = event.clientY - rect.top;
+                
+                let x = Math.floor(relativeX / (TILE_WIDTH * SCALE_FACTOR));
+                let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
+                
+                // Update the targeting sprite
+                this.removeTargetingSprite();
+                this.displayTargetingSprite(x, y);
+            }
+        });
         // stats
         this.blood = 100; //health
         this.isBurning = false;
         this.burningTurns = 0;
         this.inventory = [];
+        this.arrows = 0;
         
         // You can set the specific footprint and head tiles for each player type here.
         switch(type) {
@@ -662,6 +682,13 @@ class Player {
 
     handleKeydown(event) {
         if (this.isDead) return;
+        // If the player is in targeting mode, any keypress should cancel the targeting
+        if (this.isTargeting) {
+            this.isTargeting = false;
+            this.messageList.addMessage("Shot cancelled.");
+            this.removeTargetingSprite();
+            return;
+        }
         let newDirection = null;
         switch (event.key) {
             case 'ArrowUp':
@@ -693,6 +720,7 @@ class Player {
                 newDirection = 'down-right';
                 break;
             default:
+                messageList.addMessage('Time passes.');
                 break;
         }
         
@@ -703,21 +731,54 @@ class Player {
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
+        if (event.key === 'a' || event.code === 'KeyA') {
+            this.handleArrowAttack();
+            console.log("arrow attack");
+        }
+        if (event.key === 'c' || event.code === 'KeyC') {
+            this.handleCloseDoor();
+            console.log("close door");
+        }
     }
     
+    handleArrowAttack() {
+        const hasBow = this.inventory.some(item => item.type === ItemType.BOW);
+        if (hasBow) {
+            this.isTargeting = true;
+            this.messageList.addMessage("Aim bow at?");
+        }
+    }
+    displayTargetingSprite(x, y) {
+        this.targetingX = x;
+        this.targetingY = y;
+        createSprite(x, y, {x: 12, y: 8}, overlayMap);
+    }
     
+    removeTargetingSprite() {
+        if (this.targetingX !== null && this.targetingY !== null) {
+            createSprite(this.targetingX, this.targetingY, {x: 0, y: 0}, overlayMap); // Assuming {x: 0, y: 0} is empty
+            this.targetingX = null;
+            this.targetingY = null;
+        }
+    }
+    handleCloseDoor() {
+
+    }
 
     pickUpItem(item, x, y) {
         // Remove the item from the object map and the game container
         objectMap[y][x] = null;
         gameContainer.removeChild(item.sprite);
-    
+        playPickupSound();
         // Move the player to the item's position
         this.updatePosition(x, y); // Add this line to update the player's position
     
         // Add the item to the player's inventory
         this.inventory.push(item);
-    
+        if (item.type === ItemType.BOW || item.type === ItemType.ARROW) {
+            this.arrows++;
+        }
+
         // Log a message about the item picked up
         this.messageList.addMessage(`You picked up a ${item.name}.`);
     }
@@ -734,24 +795,28 @@ class Player {
                 this.isBurning = false;
                 this.messageList.addMessage("You are no longer on fire.");
             }
-    
-            // Check if player is dead
-            if (this.blood < 1 && this.blood > -100) {
-                this.messageList.addMessage("You are dead!");
-                this.type = PlayerType.SKELETON;
-                this.isDead = true;
-    
-                // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
-                this.skeletonize();
+            if (Math.random() < 0.7) {
+                let newY = this.y - 1; // the tile above the current one
+                if (newY >= 0 && floorMap[newY][this.x].value !== 177 && atmosphereMap[newY][this.x] === null) {
+                    let smoke = new Smoke(this.x, newY, this.scheduler);
+                    this.scheduler.add(smoke, true);
+                }
             }
-            // Check if player is REALLY dead
-            if (this.blood <= -100) {
-                this.type = PlayerType.PILE;
-                this.isDead = true;
-    
-                // Call updateSprite() here to ensure the player sprite is updated to the skeleton sprite.
-                this.incinerate();
-            }
+        }
+
+        if (this.blood < 1 && this.blood > -100 && this.isSkeletonized == false) {
+            this.messageList.addMessage("You are dead!");
+            this.type = PlayerType.SKELETON;
+            this.isDead = true;
+            this.isSkeletonized = true;
+            
+            this.skeletonize();
+        }
+        // Check if player is REALLY dead
+        if (this.blood <=-100 && this.isSkeletonized == true) {
+            this.type = PlayerType.PILE;
+            this.isDead = true;
+            this.incinerate();
         }
     }
     skeletonize() {
@@ -823,6 +888,7 @@ class Player {
                 this.inspector.addMessage("- " + item.name);
             }
         }
+        this.inspector.addMessage( "Arrows: " + this.arrows);
     }
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
@@ -1480,7 +1546,8 @@ let CanBePickedUp = {
 const ItemType = Object.freeze({
     "FOOD": 0,
     "BOW": 1,
-    "KEY": 2
+    "KEY": 2,
+    "ARROW": 3
 });
 
 class Item {
@@ -1496,15 +1563,21 @@ class Item {
                 this._name = 'Bow';
                 this._type = type;
                 this._tileIndex = {x: 13, y: 0};  // the tile indices on the spritesheet for the Bow
-                this._objectNumber = 100;
+                this._objectNumber = 100; // I was using this as a value for objectMap for game logic
                 break;
             case ItemType.KEY:
                 this._name = `${name}`;
                 this._type = type;
                 this._tileIndex = {x: 10, y: 0};
-                this._objectNumber = 105;  // Assuming 105 as the objectNumber for keys
+                this._objectNumber = 105;
                 this.id = id; // The key's unique identifier
                 this.colorValue = colorValue; // The key's color value
+                break;
+            case ItemType.ARROW:
+                this._name = 'Arrow';
+                this._type = type;
+                this._tileIndex = {x: 3, y: 2};
+                this._objectNumber = 101;
                 break;
         }
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
@@ -1761,6 +1834,7 @@ function checkGameState() {
                 delayedAdvanceTurn();
                 player.blood -= 1;
                 messageList.addDotToEndOfLastMessage();
+                player.applyDamageEffects();
             }
         }
     }
@@ -1783,7 +1857,7 @@ function createSprite(x, y, index, layer, value = null) {
     let container;
     if (layer === uiMaskMap){
         container = uiMaskContainer;
-    } else if (layer === uiMap) {
+    } else if (layer === uiMap || layer === overlayMap) {
         container = uiContainer;
     } else {
         container = gameContainer;
@@ -2485,7 +2559,7 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
-        new Item(ItemType.BOW,randomTile2.x, randomTile2.y, '0xFFFFFF', 1);
+        new Item(ItemType.BOW,randomTile3.x, randomTile3.y, '0xFFFFFF', 1);
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
