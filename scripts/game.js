@@ -147,7 +147,8 @@ var sound = new Howl({
         plunk1: [61000, 2969],
         plunk2: [65000, 10399],
         plunk3: [77000, 9779]
-      }
+      },
+      volume: 1
   });
 
 function playDoorSound() {
@@ -450,7 +451,7 @@ class Player {
                 return false;
             } else {
                 // Player doesn't have the right key
-                messageList.addMessage(`The ${door.name} door is locked.`);
+                messageList.addMessage(`The ${door.name} is locked.`);
                 return true;
             }
         }
@@ -868,7 +869,7 @@ class Player {
             this.messageList.addMessage("You are on fire!");
             
             // Increase chance of burning ending after 4 turns, with a guarantee to stop after 6 turns
-            if (this.burningTurns > 3 || (this.burningTurns > 3 && Math.random() < 0.5) || this.burningTurns > 5) {
+            if (this.burningTurns > 3 || (this.burningTurns > 3 && Math.random() < 0.5) || this.burningTurns > 5 && atmosphereMap[this.y][this.x].value != 300) {
                 this.isBurning = false;
                 this.messageList.addMessage("You are no longer on fire.");
             }
@@ -880,7 +881,10 @@ class Player {
                 }
             }
         }
-
+        if (atmosphereMap[this.y][this.x] == 400 && Math.random() < 0.7 && !this.isDead){
+            this.messageList.addMessage("You cough through the thick smoke.");
+            this.blood --;
+        }
         if (this.blood < 1 && this.blood > -100 && this.isSkeletonized == false) {
             this.messageList.addMessage("You are dead!");
             this.type = PlayerType.SKELETON;
@@ -1775,7 +1779,7 @@ class Door {
                             messageList.addMessage(`You unlocked the ${this.name} door with your key.`);
                         } else {
                             // Player doesn't have the right key
-                            messageList.addMessage(`The ${this.name} door is locked.`);
+                            messageList.addMessage(`The ${this.name} is locked.`);
                             return;
                         }
                     }
