@@ -317,7 +317,7 @@ class Player {
                 for (let point of lineToMonster) {
                     let x = point.x;
                     let y = point.y;
-                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
+                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
                         seen = false;
                     }
                 }
@@ -785,7 +785,7 @@ class Player {
             let y = point.y;
     
             // Check if there's a wall or door at this point
-            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
+            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
                 break;
             }
     
@@ -1172,7 +1172,7 @@ class Monster {
                         let x = point.x;
                         let y = point.y;
                         // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
+                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
                             seen = false;
                         }
                     }
