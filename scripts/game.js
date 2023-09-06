@@ -317,7 +317,7 @@ class Player {
                 for (let point of lineToMonster) {
                     let x = point.x;
                     let y = point.y;
-                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x])) {
+                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
                         seen = false;
                     }
                 }
@@ -749,7 +749,7 @@ class Player {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
         if (event.key === 'a' || event.code === 'KeyA') {
-            this.handleArrowAttack();
+            this.handleArrowAim();
             console.log("arrow attack");
         }
         if (event.key === 'c' || event.code === 'KeyC') {
@@ -758,7 +758,7 @@ class Player {
         }
     }
     
-    handleArrowAttack() {
+    handleArrowAim() {
         const hasBow = this.inventory.some(item => item.type === ItemType.BOW);
         if (hasBow) {
             this.isTargeting = true;
@@ -783,21 +783,21 @@ class Player {
         for (let point of path) {
             let x = point.x;
             let y = point.y;
-
+    
             // Check if there's a wall or door at this point
-            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x])) {
+            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
                 break;
             }
-
+    
             // Check if there's a monster at this point
-            /* let monster = // logic to find monster at (x, y) ;
+            let monster = this.findMonsterAt(x, y);  // Assuming findMonsterAt returns null if no monster is found
             if (monster) {
                 monsterHit = monster;
                 arrowX = x;
                 arrowY = y;
                 break;
-            } */
-
+            }
+    
             // If not, then this is the new arrow position
             arrowX = x;
             arrowY = y;
@@ -805,24 +805,33 @@ class Player {
         
         // Create the arrow sprite at the final position
         setTimeout(function() {
-            new Item(ItemType.ARROW,arrowX, arrowY, '0xFFFFFF', 2);
+            new Item(ItemType.ARROW, arrowX, arrowY, '0xFFFFFF', 2);
             engine.unlock();
         }, 700);
-        
-
+    
         // Decrement player's arrows by 1
         this.arrows--;
         
         if (monsterHit) {
             // Deal damage to the monster
-            monsterHit.takeDamage(/* Damage amount */);
-            this.messageList.addMessage("You hit the monster!");
+            monsterHit.blood -= 10;
+            this.messageList.addMessage("You hit the " + monster.name + "!");
             playArrowSound(true);
         } else {
             this.messageList.addMessage("You missed.");
             playArrowSound(false);
         } 
     }
+    
+    findMonsterAt(x, y) {
+        for (let monster of Monster.allMonsters) {  
+            if (monster.x === x && monster.y === y) {
+                return monster;
+            }
+        }
+        return null;
+    }
+    
     
     displayTargetingSprite(x, y) {
         this.targetingX = x;
@@ -1163,7 +1172,7 @@ class Monster {
                         let x = point.x;
                         let y = point.y;
                         // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x])) {
+                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == 101)) {
                             seen = false;
                         }
                     }
@@ -1644,7 +1653,7 @@ class Item {
                 this._name = 'Bow';
                 this._type = type;
                 this._tileIndex = {x: 13, y: 0};  // the tile indices on the spritesheet for the Bow
-                this._objectNumber = 1; // I was using this as a value for objectMap for game logic
+                this._objectNumber = 1; // I was using this as a enum value for objectMap for game logic should prob delete it
                 break;
             case ItemType.KEY:
                 this._name = `${name}`;
@@ -1657,6 +1666,7 @@ class Item {
             case ItemType.ARROW:
                 this._name = 'Arrow';
                 this._type = type;
+                this.isFlammable = true;
                 this._tileIndex = {x: 3, y: 1};
                 this._objectNumber = 2;
                 break;
@@ -1747,9 +1757,10 @@ class Door {
         const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
 
         const spriteIndices = this.isOpen ? openSpriteIndices : closedSpriteIndices;
-
+        
         // Create door parts on the object map
         for (let i = 0; i < spriteIndices.length; i++) {
+            
             createSprite(this.x, this.y - i, spriteIndices[i], doorMap, this.isLocked ? 101 : 100);
             let sprite = doorMap[this.y - i][this.x].sprite;
             this.sprites.push(sprite);
@@ -2610,7 +2621,7 @@ function setup() {
         }
     }
     
-    console.log(publicTiles.length);
+    //console.log(publicTiles.length);
     let randomTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
@@ -2641,6 +2652,7 @@ function setup() {
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
         new Item(ItemType.BOW,randomTile3.x, randomTile3.y, '0xFFFFFF', 1);
+        new Item(ItemType.ARROW,randomTile4.x, randomTile4.y, '0xFFFFFF', 3);
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
