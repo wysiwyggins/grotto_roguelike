@@ -786,7 +786,11 @@ class Player {
             let y = point.y;
             console.log(`Checking (${x}, ${y})` + " " + floorMap[y][x]?.value);
             // Check if there's a wall or door at this point
-            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
+            /* if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
+                break;
+              } */
+            if ((floorMap[y][x] && floorMap[y][x].value !== 157) || (doorMap[y] && doorMap[y][x] && doorMap[y][x].value !== null && !Door.isOpenAt(x, y))) {
+                console.log("Wall or door hit! " +  floorMap[y][x]?.value + " " + doorMap[y][x]?.value);
                 break;
             }
     
@@ -1753,7 +1757,12 @@ class Door {
         //return Door.allDoors.length;
         return Door.allDoors;
     }
-
+    static isOpenAt(x, y) {
+        // map value open close testing is fucked up for arrows for some reason so adding this for now
+        const door = Door.allDoors.find(d => d.x === x && (d.y === y || d.y === y+1 || d.y === y+2));
+        // Return if the door is open or not.
+        return door ? door.isOpen : false;
+    }
     createDoor() {
         const closedSpriteIndices = [{x: 11, y: 6}, {x: 10, y: 6}, {x: 21, y: 8}];
         const openSpriteIndices = [{x: 13, y: 8}, {x: 13, y: 8}, {x: 21, y: 9}];
