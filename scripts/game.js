@@ -78,6 +78,7 @@ let activeEntities = [];
 var messageList;
 var inspector;
 
+
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
@@ -317,7 +318,7 @@ class Player {
                 for (let point of lineToMonster) {
                     let x = point.x;
                     let y = point.y;
-                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
+                    if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
                         seen = false;
                     }
                 }
@@ -590,7 +591,7 @@ class Player {
         });
     }
     //moveTo implicitly takes turns when the player clicks on a distant spot that can be walked to
-    async moveTo(targetX, targetY) {
+    async moveTo(targetX, targetY, stopBefore = false) {
         if (targetX === this.x && targetY === this.y) return;
 
         let path = [];
@@ -783,9 +784,9 @@ class Player {
         for (let point of path) {
             let x = point.x;
             let y = point.y;
-    
+            console.log(`Checking (${x}, ${y})` + " " + floorMap[y][x]?.value);
             // Check if there's a wall or door at this point
-            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
+            if (floorMap[y][x]?.value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
                 break;
             }
     
@@ -793,6 +794,7 @@ class Player {
             let monster = this.findMonsterAt(x, y);  // Assuming findMonsterAt returns null if no monster is found
             if (monster) {
                 monsterHit = monster;
+                console.log("Monster hit!");
                 arrowX = x;
                 arrowY = y;
                 break;
@@ -1172,7 +1174,7 @@ class Monster {
                         let x = point.x;
                         let y = point.y;
                         // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value == null)) {
+                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
                             seen = false;
                         }
                     }
