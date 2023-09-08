@@ -799,6 +799,8 @@ class Player {
             if (monster) {
                 monsterHit = monster;
                 console.log("Monster hit!");
+                this.messageList.addMessage("You hit the " + monster.name + "!");
+                monster.bleeding = true;
                 arrowX = x;
                 arrowY = y;
                 break;
@@ -821,7 +823,7 @@ class Player {
         if (monsterHit) {
             // Deal damage to the monster
             monsterHit.blood -= 10;
-            this.messageList.addMessage("You hit the " + monster.name + "!");
+            
             playArrowSound(true);
         } else {
             this.messageList.addMessage("You missed.");
@@ -1130,7 +1132,7 @@ class Monster {
         this.burningTurns = 0;
         this.speed = 1;
         this.actFrequency = 1;
-
+        this.bleeding = false;
         this.name = ""; // To be set by a monster-specific code.
         this.description = ""; // To be set by a monster-specific code.
 
