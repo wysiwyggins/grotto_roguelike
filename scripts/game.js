@@ -58,6 +58,8 @@ let floorMap = createEmptyMap();
 //floor is used for pathfinding, it also includes the 'footprint' tiles of walls, since those are used for pathfinding
 let objectMap = createEmptyMap();
 //items
+let bloodMap = createEmptyMap();
+//yeah I know this is too many maps
 let doorMap = createEmptyMap();
 //doors
 let wallMap = createEmptyMap();
@@ -1234,6 +1236,11 @@ class Monster {
                 };
                 this.act = function() {
                     //console.log("Basilisk's turn");
+                    if (this.bleeding) {
+                        if (Math.random() < 0.7) {
+                            dripBlood(this.x, this.y);
+                        }
+                    }
                     if(!this.target) {
                         this.getTargetsInRange();
                     }
@@ -2012,6 +2019,8 @@ function createSprite(x, y, index, layer, value = null) {
         }
     } else if (layer === objectMap || layer === doorMap) {
         sprite.zIndex = 2; // Set zIndex for objectMap
+    } else if (layer === bloodMap) {
+        sprite.zIndex = 1.1;
     } else if (layer === floorMap) {
         sprite.zIndex = 1;
         
@@ -2032,8 +2041,14 @@ function createSprite(x, y, index, layer, value = null) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
+    return layer[y][x];
 }
 
+function dripBlood(x,y){
+    let tint = '0xCC0000'; 
+    let blood = createSprite(x, y, {x: 22, y: 9}, bloodMap);
+    blood.sprite.tint = tint;
+}
 
 function createVoid(x, y) {
     createSprite(x, y, {x: 9, y: 9}, backgroundMap, 216);
