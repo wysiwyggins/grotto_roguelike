@@ -876,6 +876,9 @@ class Player {
 
         // Log a message about the item picked up
         this.messageList.addMessage(`You picked up a ${item.name}.`);
+        if (item.type === ItemType.BOW) {
+            this.messageList.addMessage(`Press 'a' to aim.`); 
+        }
     }
 
     applyDamageEffects() {
