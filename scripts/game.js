@@ -826,7 +826,7 @@ class Player {
             
             playArrowSound(true);
         } else {
-            this.messageList.addMessage("You missed.");
+            this.messageList.addMessage("The arrow clatters harmlessly on stone.");
             playArrowSound(false);
         } 
     }
