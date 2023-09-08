@@ -824,7 +824,7 @@ class Player {
         
         if (monsterHit) {
             // Deal damage to the monster
-            monsterHit.blood -= 10;
+            monsterHit.takeDamage(10);
             
             playArrowSound(true);
         } else {
@@ -922,7 +922,7 @@ class Player {
             this.incinerate();
         }
     }
-    skeletonize() {
+    skeletonize(creature) {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         
         // Use player type to decide on sprites.
@@ -950,7 +950,7 @@ class Player {
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
     };
-    incinerate() {
+    incinerate(creature) {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         
         // Use player type to decide on sprites.
@@ -1318,8 +1318,32 @@ class Monster {
             }
         }
 
+        
         Monster.allMonsters.push(this);
         
+    }
+    takeDamage(amount) {
+        this.blood -= amount;
+        if (this.blood <= 0) {
+            this.die();
+        }
+    }
+
+    die() {
+        this.isDead = true;
+        this.spriteFlip = {
+            firstTile: {x: false, y: true},
+            secondTile: {x: false, y: true}
+        };
+        if (this.sprite.firstShadow) this.sprite.firstShadow.visible = false;
+        if (this.sprite.secondShadow) this.sprite.secondShadow.visible = false;
+        const index = Monster.allMonsters.indexOf(this);
+        if (index > -1) {
+            Monster.allMonsters.splice(index, 1);
+        }
+        // remove the monster from the turn engine
+        this.scheduler.remove(this);
+        this.engine._lock();  // This ensures the current turn completes before the monster is removed
     }
     printStats() {
         this.inspector.clearMessages();
@@ -1555,6 +1579,9 @@ class Fire {
                     (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300 && doorMap[newY][newX].value !== 100)) {
                 
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
+                    if (player.x === newX && player.y === newY) {
+                        player.isBurning = true;
+                    }
                     atmosphereMap[newY][newX].value = 300;
                                     
                     if (direction[0] !== 0) { // If the fire spread to the left or right, flip the sprite horizontally
@@ -2044,10 +2071,12 @@ function createSprite(x, y, index, layer, value = null) {
     return layer[y][x];
 }
 
-function dripBlood(x,y){
-    let tint = '0xCC0000'; 
-    let blood = createSprite(x, y, {x: 22, y: 9}, bloodMap);
-    blood.sprite.tint = tint;
+function dripBlood(x,y, monster, tint = '0xCC0000'){
+    let bloodDrop = createSprite(x, y, {x: 22, y: 9}, bloodMap);
+    if (monster){
+        monster.takeDamage(randomIntFromInterval(1, 10));
+    }
+    bloodDrop.sprite.tint = tint;
 }
 
 function createVoid(x, y) {
@@ -2178,11 +2207,15 @@ function isTileInTreasureRoom(tile, treasureRoom) {
            tile.y >= currentTreasureRoom.getTop() && tile.y <= currentTreasureRoom.getBottom();
 }
 
-
-function isTileWithDoor(tile, doorMap) {
-    // Check if there's any door at the given tile's coordinates
-    return doorMap[tile.y][tile.x] !== null && doorMap[tile.y][tile.x] !== undefined;
+function isDoorAt(x,y) {
+    if (doorMap[y] && doorMap[y][x] && doorMap[y][x].value !== null){
+        return false;
+    } else {    
+        return true;
+    }
+    
 }
+
 function placeKeyForDoor(door, doorName) {
     let walkableTiles = [];
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -2645,7 +2678,7 @@ function setup() {
                 let tile = {x: x, y: y};
     
                 // If the tile is neither in the treasure room nor has a door, then it's public
-                if (!isTileInTreasureRoom(tile, currentTreasureRoom)) {
+                if (!isTileInTreasureRoom(tile, currentTreasureRoom) && doorMap[tile.y][tile.x].value == null) {
                     publicTiles.push({x: tile.x,y: tile.y});
                 } 
             }
@@ -2655,10 +2688,10 @@ function setup() {
     //console.log(publicTiles.length);
     let randomTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
 
-    let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomTile2 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
 
-    let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-    let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomTile3 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile4 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 30, 10, true);
 
