@@ -1800,7 +1800,7 @@ class Door {
                         if (keyItem) {
                             this.unlock();
                             player.removeItem(keyItem); // Assuming the Player class has a removeItem method
-                            messageList.addMessage(`You unlocked the ${this.name} door with your key.`);
+                            messageList.addMessage(`You unlocked the ${this.name} with your key.`);
                         } else {
                             // Player doesn't have the right key
                             messageList.addMessage(`The ${this.name} is locked.`);
