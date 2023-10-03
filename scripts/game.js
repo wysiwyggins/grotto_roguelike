@@ -75,6 +75,7 @@ let engine;
 let gameOver = false;
 var players = [];
 let activeEntities = [];
+let activeItems = [];
 var messageList;
 var inspector;
 
@@ -174,7 +175,55 @@ function playPickupSound() {
 function playFireballSound() {
     sound.play('fireball');
 }
-    
+   
+
+let levels = {};
+// levels
+class Level {
+    constructor() {
+        // Maps and other level-specific data.
+        this.backgroundMap = createEmptyMap();
+        this.floorMap = createEmptyMap();
+        this.backgroundMap = createEmptyMap();
+        this.objectMap = createEmptyMap();
+        this.doorMap = createEmptyMap();
+        this.wallMap = createEmptyMap();
+        this.atmosphereMap = createEmptyMap();
+        this.activeEntities = [];
+        this.activeItems = [];
+
+    }
+}
+
+function saveLevel(levelIndex) {
+    const saveState = levels[levelIndex];  // Assumes you've populated this level with data
+    const saveData = JSON.stringify(saveState);
+    localStorage.setItem(`levelSave_${levelIndex}`, saveData);
+}
+
+function loadLevel(levelIndex) {
+    const saveData = localStorage.getItem(`levelSave_${levelIndex}`);
+    if (!saveData) return;  // No saved level found
+
+    const saveState = JSON.parse(saveData);
+    levels[levelIndex] = Object.assign(new Level(), saveState);  // Restore level data
+}
+
+function goToNextLevel(currentLevelIndex) {
+    // Save current level state
+    saveLevel(currentLevelIndex);
+
+    // Transition to the next level (either load it or generate a new one)
+    if (levels[currentLevelIndex + 1]) {
+        loadLevel(currentLevelIndex + 1);
+    } else {
+        // Generate and store a new level if it doesn't exist yet
+        let newLevel = generateNewLevel();  // Assumes you have a level generation function
+        levels.push(newLevel);
+        // Render or set up this new level in your game
+    }
+}
+
 // there are different player sprites for PLayerTypes, not yet used, might be removed
 
 const PlayerType = Object.freeze({
@@ -1714,6 +1763,7 @@ class Item {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: this._objectNumber, sprite: this.sprite, item: this };
+        activeItems.push(this);
     }
 
     get name() {
