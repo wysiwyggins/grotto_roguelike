@@ -248,6 +248,12 @@ const PlayerType = Object.freeze({
     
 });
 
+function dripBlood(x,y){
+    let tint = '0xCC0000';  // Remember to use 'let' or 'const' to declare the tint variable.
+    let blood = createSprite(x, y, {x: 22, y: 9}, floorMap, true);
+    blood.sprite.tint = tint;
+}
+
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.name = "Bivoj";
@@ -1315,6 +1321,11 @@ class Monster {
                 };
                 this.act = function() {
                     //console.log("Basilisk's turn");
+                    if (this.bleeding) {
+                        if (Math.random() < 0.7) {
+                            dripBlood(this.x, this.y);
+                        }
+                    }
                     if(!this.target) {
                         this.getTargetsInRange();
                     }
@@ -1394,6 +1405,27 @@ class Monster {
 
         Monster.allMonsters.push(this);
         
+    }
+    takeDamage(amount) {
+        this.blood -= amount;
+        if (this.blood <= 0) {
+            this.die();
+        }
+    }
+
+    die() {
+        this.isDead = true;
+        this.sprite.firstTile.visible = false;
+        this.sprite.secondTile.visible = false;
+        if (this.sprite.firstShadow) this.sprite.firstShadow.visible = false;
+        if (this.sprite.secondShadow) this.sprite.secondShadow.visible = false;
+        const index = Monster.allMonsters.indexOf(this);
+        if (index > -1) {
+            Monster.allMonsters.splice(index, 1);
+        }
+        // remove the monster from the turn engine
+        this.scheduler.remove(this);
+        this.engine._lock();  // This ensures the current turn completes before the monster is removed
     }
     printStats() {
         this.inspector.clearMessages();
