@@ -27,6 +27,7 @@ app.stage.addChild(uiContainer);
 //adding a global stub for the player. This kind of precludes fun things like multiple players, but oh well
 // there is an array of players still from when I thought I'd have multiple players
 let player = null;
+
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
 
@@ -46,6 +47,8 @@ const SPRITESHEET_ROWS = 11;
 let dungeon = null;
 let currentTreasureRoom; // right now one room has locked doors.
 let globalDoorCounter = 0;
+let currentLevelIndex = 1;
+
 
 //console.log('Initializing maps');
 // maps are arrays that I am using really messily. they have a value which is a number
@@ -75,6 +78,7 @@ let engine;
 let gameOver = false;
 var players = [];
 let activeEntities = [];
+let activeItems = [];
 var messageList;
 var inspector;
 
@@ -159,6 +163,9 @@ function playDoorSound() {
 function playFootstepSound() {
     sound.play('feets');
 };
+function playExitSound() {
+    sound.play('levelout');
+};
 function playArrowSound(didHit) {
     if (didHit) {
         sound.play('arrow_hit');
@@ -174,7 +181,57 @@ function playPickupSound() {
 function playFireballSound() {
     sound.play('fireball');
 }
-    
+   
+
+let levels = [];
+// levels
+class Level {
+    constructor() {
+        // Maps and other level-specific data.
+        this.backgroundMap = createEmptyMap();
+        this.floorMap = createEmptyMap();
+        this.backgroundMap = createEmptyMap();
+        this.objectMap = createEmptyMap();
+        this.doorMap = createEmptyMap();
+        this.wallMap = createEmptyMap();
+        this.atmosphereMap = createEmptyMap();
+        this.activeEntities = [];
+        this.activeItems = [];
+        this.upExitPosition = {x: 0, y: 0};
+        this.downExitPosition = {x: 0, y: 0};
+
+    }
+}
+
+function saveLevel(levelIndex) {
+    const saveState = levels[levelIndex];  // Assumes you've populated this level with data
+    const saveData = JSON.stringify(saveState);
+    localStorage.setItem(`levelSave_${levelIndex}`, saveData);
+}
+
+function loadLevel(levelIndex) {
+    const saveData = localStorage.getItem(`levelSave_${levelIndex}`);
+    if (!saveData) return;  // No saved level found
+
+    const saveState = JSON.parse(saveData);
+    levels[levelIndex] = Object.assign(new Level(), saveState);  // Restore level data
+}
+
+function goToNextLevel(currentLevelIndex) {
+    // Save current level state
+    saveLevel(currentLevelIndex);
+
+    // Transition to the next level (either load it or generate a new one)
+    if (levels[currentLevelIndex + 1]) {
+        loadLevel(currentLevelIndex + 1);
+    } else {
+        // Generate and store a new level if it doesn't exist yet
+        let newLevel = generateNewLevel();  // Assumes you have a level generation function
+        levels.push(newLevel);
+        // Render or set up this new level in your game
+    }
+}
+
 // there are different player sprites for PLayerTypes, not yet used, might be removed
 
 const PlayerType = Object.freeze({
@@ -190,6 +247,12 @@ const PlayerType = Object.freeze({
     "PILE": 9
     
 });
+
+function dripBlood(x,y){
+    let tint = '0xCC0000';  // Remember to use 'let' or 'const' to declare the tint variable.
+    let blood = createSprite(x, y, {x: 22, y: 9}, floorMap, true);
+    blood.sprite.tint = tint;
+}
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -381,6 +444,11 @@ class Player {
             this.updateSprites(newTileX, newTileY);
             return;  // Exit after handling the door.
         }
+        let exit = Exit.allExits.find(e => e.x === newTileX && e.y === newTileY);
+        if (exit) {
+            this.handleExit(exit);
+            return; // Exit the function after handling the exit tile
+        }
     
         // Handle fire tile effects
         this.handleTileEffects(newTileX, newTileY, direction);
@@ -395,7 +463,29 @@ class Player {
         }
     }
     
+    handleExit(exit) {
+        let currentLevelIndex = levels.indexOf(dungeon);
+        if (exit.type === "down") {
+            // Handle descending
+            goToNextLevel(currentLevelIndex);
+            let nextLevel = levels[currentLevelIndex + 1];
+            this.updatePosition(nextLevel.upExitPosition.x, nextLevel.upExitPosition.y);
+        } else if (exit.type === "up") {
+            // Handle ascending
+            if (currentLevelIndex > 0) {
+                loadLevel(currentLevelIndex - 1);
+                let previousLevel = levels[currentLevelIndex - 1];
+                this.updatePosition(previousLevel.downExitPosition.x, previousLevel.downExitPosition.y);
+            } else {
+                console.warn("Already at the topmost level!");
+                return;
+            }
+        }
     
+        // Play a sound or animation if you like
+        playExitSound();
+        this.updateSprites();
+    }
     
 
     getDeltaXY(direction) {
@@ -448,7 +538,7 @@ class Player {
                 door.unlock();
                 player.removeItem(keyItem);
                 sound.play('lock');
-                messageList.addMessage(`You unlocked the ${door.name} door with your key.`);
+                messageList.addMessage(`You unlocked the ${door.name} with your key.`);
                 return false;
             } else {
                 // Player doesn't have the right key
@@ -1231,6 +1321,11 @@ class Monster {
                 };
                 this.act = function() {
                     //console.log("Basilisk's turn");
+                    if (this.bleeding) {
+                        if (Math.random() < 0.7) {
+                            dripBlood(this.x, this.y);
+                        }
+                    }
                     if(!this.target) {
                         this.getTargetsInRange();
                     }
@@ -1310,6 +1405,27 @@ class Monster {
 
         Monster.allMonsters.push(this);
         
+    }
+    takeDamage(amount) {
+        this.blood -= amount;
+        if (this.blood <= 0) {
+            this.die();
+        }
+    }
+
+    die() {
+        this.isDead = true;
+        this.sprite.firstTile.visible = false;
+        this.sprite.secondTile.visible = false;
+        if (this.sprite.firstShadow) this.sprite.firstShadow.visible = false;
+        if (this.sprite.secondShadow) this.sprite.secondShadow.visible = false;
+        const index = Monster.allMonsters.indexOf(this);
+        if (index > -1) {
+            Monster.allMonsters.splice(index, 1);
+        }
+        // remove the monster from the turn engine
+        this.scheduler.remove(this);
+        this.engine._lock();  // This ensures the current turn completes before the monster is removed
     }
     printStats() {
         this.inspector.clearMessages();
@@ -1714,6 +1830,7 @@ class Item {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: this._objectNumber, sprite: this.sprite, item: this };
+        activeItems.push(this);
     }
 
     get name() {
@@ -1905,6 +2022,51 @@ class Door {
 
 }
 
+class Exit {
+    static allExits = [];
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // "up" or "down"
+        this.createExit();
+        Exit.allExits.push(this);
+    }
+
+    createExit() {
+        let spriteIndices = this.type === "down" ? 
+            [{x: 22, y: 5, flipV: true}, {x: 21, y: 0}] : 
+            [{x: 22, y: 5, flipH: true, flipV: true}, {x: 20, y: 0}];
+    
+        this.sprites = [];
+    
+        for (let i = 0; i < spriteIndices.length; i++) {
+            let spriteInfo = spriteIndices[i];
+    
+            // For the upper tile, we adjust the y-coordinate
+            let yOffset = i === 0 ? -1 : 0;
+    
+            let sprite = createSprite(this.x, this.y + yOffset, {x: spriteInfo.x, y: spriteInfo.y}, floorMap, 157);
+    
+            // Positioning for flipping logic
+            if (spriteInfo.flipH) {
+                sprite.scale.x *= -1;
+                sprite.x += TILE_WIDTH * SCALE_FACTOR;
+            }
+    
+            if (spriteInfo.flipV) {
+                sprite.scale.y *= -1;
+                sprite.y += TILE_HEIGHT * SCALE_FACTOR;
+            }
+    
+            this.sprites.push(sprite);
+        }
+    }
+    
+    
+}
+
+
+
 
 // Mixin CanBePickedUp into Item
 Object.assign(Item.prototype, CanBePickedUp);
@@ -2029,6 +2191,7 @@ function createSprite(x, y, index, layer, value = null) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
+    return sprite;
 }
 
 
@@ -2619,6 +2782,8 @@ function setup() {
     addBaseAndShadows();    
     let walkableTiles = [];
     let publicTiles = []
+    let currentLevel = new Level();
+    levels.push(currentLevel);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -2641,6 +2806,20 @@ function setup() {
 
     let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let downExitTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let upExitTile;
+    do {
+        upExitTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    } while (upExitTile.x === downExitTile.x && upExitTile.y === downExitTile.y); // Make sure it's not the same tile
+
+    
+    // Create the exits
+    let downExit = new Exit(downExitTile.x, downExitTile.y, "down");
+    let upExit = new Exit(upExitTile.x, upExitTile.y, "up");
+
+    currentLevel.downExitPosition = {x: downExitTile.x, y: downExitTile.y};
+    currentLevel.upExitPosition = {x: upExitTile.x, y: upExitTile.y};
+        
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 30, 10, true);
 
