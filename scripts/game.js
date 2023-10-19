@@ -130,7 +130,7 @@ PIXI.Loader.shared.onComplete.add(() => {
 });
 //console.log(smokeFrames);
 
-fetch("../assets/sound/grottoAudiosprite.json")
+fetch("../data/grottoAudiosprite.json")
   .then(response => response.json())
   .then(data => {
     audioSpriteData = data;
@@ -2291,7 +2291,7 @@ function dungeonGeneration() {
 
 async function addDoors() {
     // Fetch colors.json and store the colors array
-    const response = await fetch('./assets/colors.json');
+    const response = await fetch('./data/colors.json');
     const data = await response.json();
     const colors = data.colors;
 
