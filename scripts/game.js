@@ -2818,7 +2818,8 @@ function setup() {
     let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
-    let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    //add exits, they don't work yet
+   /*  let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let upExitTile;
     do {
         upExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
@@ -2828,9 +2829,12 @@ function setup() {
     // Create the exits
     let downExit = new Exit(downExitTile.x, downExitTile.y, "down");
     let upExit = new Exit(upExitTile.x, upExitTile.y, "up");
-
+    
+    
     currentLevel.downExitPosition = {x: downExitTile.x, y: downExitTile.y};
     currentLevel.upExitPosition = {x: upExitTile.x, y: upExitTile.y};
+    */
+
         
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 30, 10, true);
