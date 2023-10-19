@@ -1,85 +1,121 @@
 {
-  "resources": [
-    "grottoAudiosprite.ogg",
-    "grottoAudiosprite.m4a",
-    "grottoAudiosprite.mp3",
-    "grottoAudiosprite.ac3"
+  "urls": [
+    "~/Development/audiosprite-master/grottoAudiosprite.mp3",
+    "~/Development/audiosprite-master/grottoAudiosprite.ogg",
+    "~/Development/audiosprite-master/grottoAudiosprite.m4a"
   ],
-  "spritemap": {
-    "arrow_hit": {
-      "start": 0,
-      "end": 2.9691609977324265,
-      "loop": false
-    },
-    "arrow_miss": {
-      "start": 4,
-      "end": 6.969160997732427,
-      "loop": false
-    },
-    "feets": {
-      "start": 8,
-      "end": 8.418390022675737,
-      "loop": false
-    },
-    "fireball": {
-      "start": 10,
-      "end": 12.969160997732427,
-      "loop": false
-    },
-    "hallway": {
-      "start": 14,
-      "end": 16,
-      "loop": false
-    },
-    "heal": {
-      "start": 17,
-      "end": 19.969160997732427,
-      "loop": false
-    },
-    "hit": {
-      "start": 21,
-      "end": 23.969160997732427,
-      "loop": false
-    },
-    "levelout": {
-      "start": 25,
-      "end": 27.969160997732427,
-      "loop": false
-    },
-    "lock": {
-      "start": 29,
-      "end": 40.88562358276644,
-      "loop": false
-    },
-    "magic": {
-      "start": 42,
-      "end": 47.941315192743765,
-      "loop": false
-    },
-    "ouch": {
-      "start": 49,
-      "end": 53.455238095238094,
-      "loop": false
-    },
-    "pickup": {
-      "start": 55,
-      "end": 59.455238095238094,
-      "loop": false
-    },
-    "plunk1": {
-      "start": 61,
-      "end": 63.96916099773242,
-      "loop": false
-    },
-    "plunk2": {
-      "start": 65,
-      "end": 75.39954648526077,
-      "loop": false
-    },
-    "plunk3": {
-      "start": 77,
-      "end": 86.77907029478457,
-      "loop": false
-    }
+  "sprite": {
+    "arrow_hit": [
+      0,
+      3030.204081632653
+    ],
+    "arrow_miss": [
+      5000,
+      3030.204081632654
+    ],
+    "bow": [
+      10000,
+      624.0136054421761
+    ],
+    "feets": [
+      12000,
+      496.3265306122455
+    ],
+    "fireball": [
+      14000,
+      3030.204081632654
+    ],
+    "hallway": [
+      19000,
+      2063.673469387755
+    ],
+    "heal": [
+      23000,
+      3030.204081632654
+    ],
+    "hit": [
+      28000,
+      3030.204081632654
+    ],
+    "levelout": [
+      33000,
+      3030.204081632654
+    ],
+    "lock": [
+      38000,
+      11937.95918367347
+    ],
+    "magic": [
+      51000,
+      6008.163265306123
+    ],
+    "match": [
+      59000,
+      7915.102040816322
+    ],
+    "ouch": [
+      68000,
+      4519.183673469385
+    ],
+    "pickup": [
+      74000,
+      4519.183673469385
+    ],
+    "plunk1": [
+      80000,
+      3030.2040816326466
+    ],
+    "plunk2": [
+      85000,
+      10475.102040816324
+    ],
+    "plunk3": [
+      97000,
+      9848.163265306126
+    ],
+    "scrub2": [
+      108000,
+      2690.612244897963
+    ],
+    "scrub3": [
+      112000,
+      1199.614512471655
+    ],
+    "tap1": [
+      115000,
+      1651.4739229024967
+    ],
+    "tap2": [
+      118000,
+      2112.018140589569
+    ],
+    "tap3": [
+      122000,
+      1248.0045351473877
+    ],
+    "tap4": [
+      125000,
+      384.01360544217766
+    ],
+    "tone1": [
+      127000,
+      2184.0136054421746
+    ],
+    "tone2": [
+      131000,
+      2352.018140589564
+    ],
+    "tone3": [
+      135000,
+      1128.0045351473973
+    ],
+    "tone4": [
+      138000,
+      1848.0045351473962
+    ],
+    "tone5": [
+      141000,
+      1704.013605442185
+    ]
   }
 }

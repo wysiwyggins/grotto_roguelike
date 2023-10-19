@@ -82,6 +82,8 @@ let activeItems = [];
 var messageList;
 var inspector;
 
+let audioSpriteData;
+let sound;
 
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
@@ -128,33 +130,30 @@ PIXI.Loader.shared.onComplete.add(() => {
 });
 //console.log(smokeFrames);
 
-//howler.js object for our sound sprites goes here:
-var sound = new Howl({
-    src: [
-      '../assets/sound/grottoAudiosprite.ogg', 
-      '../assets/sound/grottoAudiosprite.m4a', 
-      '../assets/sound/grottoAudiosprite.mp3', 
-      '../assets/sound/grottoAudiosprite.ac3'
-    ],
-    sprite: {
-        arrow_hit: [0, 2969],
-        arrow_miss: [4000, 2969],
-        feets: [8000, 418],
-        fireball: [10000, 2969],
-        hallway: [14000, 2000],
-        heal: [17000, 2969],
-        hit: [21000, 2969],
-        levelout: [25000, 2969],
-        lock: [29000, 11886],
-        magic: [42000, 5941],
-        ouch: [49000, 4455],
-        pickup: [55000, 4455],
-        plunk1: [61000, 2969],
-        plunk2: [65000, 10399],
-        plunk3: [77000, 9779]
-      },
-      volume: 1
+fetch("../assets/sound/grottoAudiosprite.json")
+  .then(response => response.json())
+  .then(data => {
+    audioSpriteData = data;
+    initHowler();
+  })
+  .catch(error => {
+    console.error("Error fetching sprite data:", error);
   });
+
+function initHowler() {
+// Correct the urls path as needed
+const correctUrls = audioSpriteData.urls.map(url => {
+    return url.replace("~/Development/audiosprite-master/", "../assets/sound/");
+});
+
+sound = new Howl({
+    src: correctUrls,
+    sprite: audioSpriteData.sprite,
+    volume: 1
+});
+
+// You can now use the sound object as needed
+}
 
 function playDoorSound() {
     sound.play('plunk3');
@@ -181,6 +180,11 @@ function playPickupSound() {
 function playFireballSound() {
     sound.play('fireball');
 }
+
+function playBumpSound() {
+    sound.play('tap1');
+}
+  
    
 
 let levels = [];
@@ -248,11 +252,7 @@ const PlayerType = Object.freeze({
     
 });
 
-function dripBlood(x,y){
-    let tint = '0xCC0000';  // Remember to use 'let' or 'const' to declare the tint variable.
-    let blood = createSprite(x, y, {x: 22, y: 9}, floorMap, true);
-    blood.sprite.tint = tint;
-}
+
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -427,7 +427,11 @@ class Player {
         
         if (this.isOutOfBounds(newTileX, newTileY)) return;
         
-        if (!this.isWalkableTile(newTileX, newTileY)) return;
+        if (!this.isWalkableTile(newTileX, newTileY)){
+            playBumpSound();
+            console.log("Out of bounds");
+            return;
+        }
         
         let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
         if (this.isLockedDoor(door)) return;
@@ -1748,6 +1752,12 @@ class Smoke {
     }
 }
 
+//blood
+function dripBlood(x,y){
+    let tint = '0xCC0000';  // Remember to use 'let' or 'const' to declare the tint variable.
+    let blood = createSprite(x, y, {x: 22, y: 9}, floorMap, true);
+    blood.tint = tint;
+}
 //items
 
 let CanBePickedUp = {
@@ -2033,7 +2043,7 @@ class Exit {
     }
 
     createExit() {
-        let spriteIndices = this.type === "down" ? 
+        let spriteIndices = this.type === "up" ? 
             [{x: 22, y: 5, flipV: true}, {x: 21, y: 0}] : 
             [{x: 22, y: 5, flipH: true, flipV: true}, {x: 20, y: 0}];
     
@@ -2191,6 +2201,7 @@ function createSprite(x, y, index, layer, value = null) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
+    
     return sprite;
 }
 
@@ -2806,10 +2817,11 @@ function setup() {
 
     let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
     let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-    let downExitTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+
+    let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let upExitTile;
     do {
-        upExitTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+        upExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     } while (upExitTile.x === downExitTile.x && upExitTile.y === downExitTile.y); // Make sure it's not the same tile
 
     
