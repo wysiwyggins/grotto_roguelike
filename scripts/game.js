@@ -27,6 +27,7 @@ app.stage.addChild(uiContainer);
 //adding a global stub for the player. This kind of precludes fun things like multiple players, but oh well
 // there is an array of players still from when I thought I'd have multiple players
 let player = null;
+
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
 
@@ -46,6 +47,8 @@ const SPRITESHEET_ROWS = 11;
 let dungeon = null;
 let currentTreasureRoom; // right now one room has locked doors.
 let globalDoorCounter = 0;
+let currentLevelIndex = 1;
+
 
 //console.log('Initializing maps');
 // maps are arrays that I am using really messily. they have a value which is a number
@@ -66,6 +69,7 @@ let wallMap = createEmptyMap();
 // the height of walls, (their middle and top tiles)
 let atmosphereMap = createEmptyMap();
 // fire, smoke and gas
+let bloodMap = createEmptyMap();
 let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
@@ -73,13 +77,17 @@ let uiMap = createEmptyMap();
 let overlayMap = createEmptyMap();
 // the content of uiboxes
 
+
 let engine;
 let gameOver = false;
 var players = [];
 let activeEntities = [];
+let activeItems = [];
 var messageList;
 var inspector;
 
+let audioSpriteData;
+let sound;
 
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
@@ -126,33 +134,30 @@ PIXI.Loader.shared.onComplete.add(() => {
 });
 //console.log(smokeFrames);
 
-//howler.js object for our sound sprites goes here:
-var sound = new Howl({
-    src: [
-      '../assets/sound/grottoAudiosprite.ogg', 
-      '../assets/sound/grottoAudiosprite.m4a', 
-      '../assets/sound/grottoAudiosprite.mp3', 
-      '../assets/sound/grottoAudiosprite.ac3'
-    ],
-    sprite: {
-        arrow_hit: [0, 2969],
-        arrow_miss: [4000, 2969],
-        feets: [8000, 418],
-        fireball: [10000, 2969],
-        hallway: [14000, 2000],
-        heal: [17000, 2969],
-        hit: [21000, 2969],
-        levelout: [25000, 2969],
-        lock: [29000, 11886],
-        magic: [42000, 5941],
-        ouch: [49000, 4455],
-        pickup: [55000, 4455],
-        plunk1: [61000, 2969],
-        plunk2: [65000, 10399],
-        plunk3: [77000, 9779]
-      },
-      volume: 1
+fetch("../data/grottoAudiosprite.json")
+  .then(response => response.json())
+  .then(data => {
+    audioSpriteData = data;
+    initHowler();
+  })
+  .catch(error => {
+    console.error("Error fetching sprite data:", error);
   });
+
+function initHowler() {
+// Correct the urls path as needed
+const correctUrls = audioSpriteData.urls.map(url => {
+    return url.replace("~/Development/audiosprite-master/", "../assets/sound/");
+});
+
+sound = new Howl({
+    src: correctUrls,
+    sprite: audioSpriteData.sprite,
+    volume: 1
+});
+
+// You can now use the sound object as needed
+}
 
 function playDoorSound() {
     sound.play('plunk3');
@@ -160,6 +165,9 @@ function playDoorSound() {
 
 function playFootstepSound() {
     sound.play('feets');
+};
+function playExitSound() {
+    sound.play('levelout');
 };
 function playArrowSound(didHit) {
     if (didHit) {
@@ -176,7 +184,62 @@ function playPickupSound() {
 function playFireballSound() {
     sound.play('fireball');
 }
-    
+
+function playBumpSound() {
+    sound.play('tap1');
+}
+  
+   
+
+let levels = [];
+// levels
+class Level {
+    constructor() {
+        // Maps and other level-specific data.
+        this.backgroundMap = createEmptyMap();
+        this.floorMap = createEmptyMap();
+        this.backgroundMap = createEmptyMap();
+        this.objectMap = createEmptyMap();
+        this.doorMap = createEmptyMap();
+        this.wallMap = createEmptyMap();
+        this.atmosphereMap = createEmptyMap();
+        this.activeEntities = [];
+        this.activeItems = [];
+        this.upExitPosition = {x: 0, y: 0};
+        this.downExitPosition = {x: 0, y: 0};
+
+    }
+}
+
+function saveLevel(levelIndex) {
+    const saveState = levels[levelIndex];  // Assumes you've populated this level with data
+    const saveData = JSON.stringify(saveState);
+    localStorage.setItem(`levelSave_${levelIndex}`, saveData);
+}
+
+function loadLevel(levelIndex) {
+    const saveData = localStorage.getItem(`levelSave_${levelIndex}`);
+    if (!saveData) return;  // No saved level found
+
+    const saveState = JSON.parse(saveData);
+    levels[levelIndex] = Object.assign(new Level(), saveState);  // Restore level data
+}
+
+function goToNextLevel(currentLevelIndex) {
+    // Save current level state
+    saveLevel(currentLevelIndex);
+
+    // Transition to the next level (either load it or generate a new one)
+    if (levels[currentLevelIndex + 1]) {
+        loadLevel(currentLevelIndex + 1);
+    } else {
+        // Generate and store a new level if it doesn't exist yet
+        let newLevel = generateNewLevel();  // Assumes you have a level generation function
+        levels.push(newLevel);
+        // Render or set up this new level in your game
+    }
+}
+
 // there are different player sprites for PLayerTypes, not yet used, might be removed
 
 const PlayerType = Object.freeze({
@@ -192,6 +255,8 @@ const PlayerType = Object.freeze({
     "PILE": 9
     
 });
+
+
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -366,7 +431,11 @@ class Player {
         
         if (this.isOutOfBounds(newTileX, newTileY)) return;
         
-        if (!this.isWalkableTile(newTileX, newTileY)) return;
+        if (!this.isWalkableTile(newTileX, newTileY)){
+            playBumpSound();
+            console.log("Out of bounds");
+            return;
+        }
         
         let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
         if (this.isLockedDoor(door)) return;
@@ -383,6 +452,11 @@ class Player {
             this.updateSprites(newTileX, newTileY);
             return;  // Exit after handling the door.
         }
+        let exit = Exit.allExits.find(e => e.x === newTileX && e.y === newTileY);
+        if (exit) {
+            this.handleExit(exit);
+            return; // Exit the function after handling the exit tile
+        }
     
         // Handle fire tile effects
         this.handleTileEffects(newTileX, newTileY, direction);
@@ -397,7 +471,29 @@ class Player {
         }
     }
     
+    handleExit(exit) {
+        let currentLevelIndex = levels.indexOf(dungeon);
+        if (exit.type === "down") {
+            // Handle descending
+            goToNextLevel(currentLevelIndex);
+            let nextLevel = levels[currentLevelIndex + 1];
+            this.updatePosition(nextLevel.upExitPosition.x, nextLevel.upExitPosition.y);
+        } else if (exit.type === "up") {
+            // Handle ascending
+            if (currentLevelIndex > 0) {
+                loadLevel(currentLevelIndex - 1);
+                let previousLevel = levels[currentLevelIndex - 1];
+                this.updatePosition(previousLevel.downExitPosition.x, previousLevel.downExitPosition.y);
+            } else {
+                console.warn("Already at the topmost level!");
+                return;
+            }
+        }
     
+        // Play a sound or animation if you like
+        playExitSound();
+        this.updateSprites();
+    }
     
 
     getDeltaXY(direction) {
@@ -450,7 +546,7 @@ class Player {
                 door.unlock();
                 player.removeItem(keyItem);
                 sound.play('lock');
-                messageList.addMessage(`You unlocked the ${door.name} door with your key.`);
+                messageList.addMessage(`You unlocked the ${door.name} with your key.`);
                 return false;
             } else {
                 // Player doesn't have the right key
@@ -1156,6 +1252,7 @@ class Monster {
                 this.secondTilePosition = {x: 21, y: 6};
                 this.attacks = ["FIREBREATH"];
                 this.target = null;
+                this.bloodColor = '0xFF0000';
                 this.range = 5;
                 this.speed = 1; // Number of tiles to move in a turn
                 this.actFrequency = 2; // Number of turns to wait between actions
@@ -1238,7 +1335,7 @@ class Monster {
                     //console.log("Basilisk's turn");
                     if (this.bleeding) {
                         if (Math.random() < 0.7) {
-                            dripBlood(this.x, this.y);
+                            dripBlood(this.x, this.y, this.bloodColor);
                         }
                     }
                     if(!this.target) {
@@ -1669,6 +1766,11 @@ class Smoke {
     }
 }
 
+//blood
+function dripBlood(x, y, tint) {
+    createSprite(x, y, {x: 21, y: 7}, bloodMap, true, false, tint);
+    console.log("drip");
+}
 //items
 
 let CanBePickedUp = {
@@ -1751,6 +1853,7 @@ class Item {
             objectMap[this.y] = [];
         }
         objectMap[this.y][this.x] = { value: this._objectNumber, sprite: this.sprite, item: this };
+        activeItems.push(this);
     }
 
     get name() {
@@ -1942,6 +2045,51 @@ class Door {
 
 }
 
+class Exit {
+    static allExits = [];
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; // "up" or "down"
+        this.createExit();
+        Exit.allExits.push(this);
+    }
+
+    createExit() {
+        let spriteIndices = this.type === "up" ? 
+            [{x: 22, y: 5, flipV: true}, {x: 21, y: 0}] : 
+            [{x: 22, y: 5, flipH: true, flipV: true}, {x: 20, y: 0}];
+    
+        this.sprites = [];
+    
+        for (let i = 0; i < spriteIndices.length; i++) {
+            let spriteInfo = spriteIndices[i];
+    
+            // For the upper tile, we adjust the y-coordinate
+            let yOffset = i === 0 ? -1 : 0;
+    
+            let sprite = createSprite(this.x, this.y + yOffset, {x: spriteInfo.x, y: spriteInfo.y}, floorMap, 157);
+    
+            // Positioning for flipping logic
+            if (spriteInfo.flipH) {
+                sprite.scale.x *= -1;
+                sprite.x += TILE_WIDTH * SCALE_FACTOR;
+            }
+    
+            if (spriteInfo.flipV) {
+                sprite.scale.y *= -1;
+                sprite.y += TILE_HEIGHT * SCALE_FACTOR;
+            }
+    
+            this.sprites.push(sprite);
+        }
+    }
+    
+    
+}
+
+
+
 
 // Mixin CanBePickedUp into Item
 Object.assign(Item.prototype, CanBePickedUp);
@@ -1992,7 +2140,7 @@ function getTextureFromIndices(index) {
     return texture;
 }
 
-function createSprite(x, y, index, layer, value = null) {
+function createSprite(x, y, index, layer, value = null, overlay = false, tint = null) {
     if (!layer[y]) {
         layer[y] = [];
     }
@@ -2008,8 +2156,6 @@ function createSprite(x, y, index, layer, value = null) {
         container.removeChild(layer[y][x].sprite);
     }
 
-    
-
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         index.x * TILE_WIDTH,
@@ -2020,7 +2166,9 @@ function createSprite(x, y, index, layer, value = null) {
     sprite.scale.set(SCALE_FACTOR);
     sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
-
+    if (tint) {
+        sprite.tint = tint;
+    }
     // Set initial opacity to 1
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
@@ -2055,20 +2203,24 @@ function createSprite(x, y, index, layer, value = null) {
         if (backgroundMap?.[y]?.[x]?.sprite) {
             container.removeChild(backgroundMap[y][x].sprite);         
         }
+    } else if (layer === bloodMap) { 
+        sprite.zIndex = 1.1;
     }
+
 
     container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
-
     // Update zIndex for objectMap based on y position compared to walls
     if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
         if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
-    return layer[y][x];
+    
+    //return sprite;
+    return layer[y][x]; 
 }
 
 function dripBlood(x,y, monster, tint = '0xCC0000'){
@@ -2164,7 +2316,7 @@ function dungeonGeneration() {
 
 async function addDoors() {
     // Fetch colors.json and store the colors array
-    const response = await fetch('./assets/colors.json');
+    const response = await fetch('./data/colors.json');
     const data = await response.json();
     const colors = data.colors;
 
@@ -2190,6 +2342,7 @@ async function addDoors() {
                     const colorIndex = Math.floor(Math.random() * colors.length); 
                     const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
                     new Door(globalDoorCounter++, x, y, colorValue);  // Unlocked door with unique ID
+                    //console.log("door color " + colorValue);
                 }
             });
         }
@@ -2670,6 +2823,8 @@ function setup() {
     addBaseAndShadows();    
     let walkableTiles = [];
     let publicTiles = []
+    let currentLevel = new Level();
+    levels.push(currentLevel);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
@@ -2690,8 +2845,27 @@ function setup() {
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
 
-    let randomTile3 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
-    let randomTile4 = walkableTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+
+    //add exits, they don't work yet
+   /*  let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let upExitTile;
+    do {
+        upExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    } while (upExitTile.x === downExitTile.x && upExitTile.y === downExitTile.y); // Make sure it's not the same tile
+
+    
+    // Create the exits
+    let downExit = new Exit(downExitTile.x, downExitTile.y, "down");
+    let upExit = new Exit(upExitTile.x, upExitTile.y, "up");
+    
+    
+    currentLevel.downExitPosition = {x: downExitTile.x, y: downExitTile.y};
+    currentLevel.upExitPosition = {x: upExitTile.x, y: upExitTile.y};
+    */
+
+        
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 30, 10, true);
 
