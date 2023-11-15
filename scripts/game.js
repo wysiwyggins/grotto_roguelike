@@ -67,12 +67,14 @@ let wallMap = createEmptyMap();
 // the height of walls, (their middle and top tiles)
 let atmosphereMap = createEmptyMap();
 // fire, smoke and gas
+let bloodMap = createEmptyMap();
 let uiMaskMap = createEmptyMap();
 // the background of uiboxes
 let uiMap = createEmptyMap();
 
 let overlayMap = createEmptyMap();
 // the content of uiboxes
+
 
 let engine;
 let gameOver = false;
@@ -1245,6 +1247,7 @@ class Monster {
                 this.secondTilePosition = {x: 21, y: 6};
                 this.attacks = ["FIREBREATH"];
                 this.target = null;
+                this.bloodColor = '0xFF0000';
                 this.range = 5;
                 this.speed = 1; // Number of tiles to move in a turn
                 this.actFrequency = 2; // Number of turns to wait between actions
@@ -1327,7 +1330,7 @@ class Monster {
                     //console.log("Basilisk's turn");
                     if (this.bleeding) {
                         if (Math.random() < 0.7) {
-                            dripBlood(this.x, this.y);
+                            dripBlood(this.x, this.y, this.bloodColor);
                         }
                     }
                     if(!this.target) {
@@ -1753,10 +1756,9 @@ class Smoke {
 }
 
 //blood
-function dripBlood(x,y){
-    let tint = '0xCC0000';  // Remember to use 'let' or 'const' to declare the tint variable.
-    let blood = createSprite(x, y, {x: 22, y: 9}, floorMap, true);
-    blood.tint = tint;
+function dripBlood(x, y, tint) {
+    createSprite(x, y, {x: 21, y: 7}, bloodMap, true, false, tint);
+    console.log("drip");
 }
 //items
 
@@ -2127,7 +2129,7 @@ function getTextureFromIndices(index) {
     return texture;
 }
 
-function createSprite(x, y, index, layer, value = null) {
+function createSprite(x, y, index, layer, value = null, overlay = false, tint = null) {
     if (!layer[y]) {
         layer[y] = [];
     }
@@ -2143,8 +2145,6 @@ function createSprite(x, y, index, layer, value = null) {
         container.removeChild(layer[y][x].sprite);
     }
 
-    
-
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
         index.x * TILE_WIDTH,
@@ -2155,7 +2155,9 @@ function createSprite(x, y, index, layer, value = null) {
     sprite.scale.set(SCALE_FACTOR);
     sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
     sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
-
+    if (tint) {
+        sprite.tint = tint;
+    }
     // Set initial opacity to 1
     if (layer === wallMap || layer === uiMap) {
         sprite.alpha = 1;
@@ -2188,13 +2190,15 @@ function createSprite(x, y, index, layer, value = null) {
         if (backgroundMap?.[y]?.[x]?.sprite) {
             container.removeChild(backgroundMap[y][x].sprite);         
         }
+    } else if (layer === bloodMap) { 
+        sprite.zIndex = 1.1;
     }
+
 
     container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
-
     // Update zIndex for objectMap based on y position compared to walls
     if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
         if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
@@ -2202,7 +2206,8 @@ function createSprite(x, y, index, layer, value = null) {
         }
     }
     
-    return sprite;
+    //return sprite;
+    return layer[y][x]; 
 }
 
 
@@ -2317,6 +2322,7 @@ async function addDoors() {
                     const colorIndex = Math.floor(Math.random() * colors.length); 
                     const colorValue = parseInt(colors[colorIndex].hex.slice(1), 16);
                     new Door(globalDoorCounter++, x, y, colorValue);  // Unlocked door with unique ID
+                    //console.log("door color " + colorValue);
                 }
             });
         }
