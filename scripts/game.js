@@ -254,7 +254,60 @@ const PlayerType = Object.freeze({
     
 });
 
+class Entity {
+    constructor(x, y, scheduler, frames, zIndex) {
+        activeEntities.push(this);
+        this.x = x;
+        this.y = y;
+        this.scheduler = scheduler;
+        this.name = "Entity"; // Default name, should be overridden by subclasses
+        this.sprite = new PIXI.AnimatedSprite(frames);
+        this.sprite.animationSpeed = 0.1;
+        this.sprite.loop = true;
+        this.sprite.play();
+        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
+        this.sprite.scale.set(SCALE_FACTOR);
+        this.sprite.zIndex = zIndex;
+        gameContainer.addChild(this.sprite);
 
+        this.sprite.interactive = true;
+        this.sprite.on('mouseover', () => {
+            messageList.hideBox(); 
+            this.showInspectorInfo();
+            inspector.showBox();  
+            inspector.render();  
+        });
+        this.sprite.on('mouseout', () => {
+            inspector.hideBox();
+            messageList.showBox();
+        });
+    }
+
+    showInspectorInfo() {
+        // This method should be overridden by subclasses to display specific information
+        inspector.clearMessages();
+        inspector.addMessage(`${this.name}`);
+    }
+
+    destroy() {
+        // Remove from object map and active entities
+        if (atmosphereMap[this.y] && atmosphereMap[this.y][this.x]) {
+            atmosphereMap[this.y][this.x] = null;
+        }
+
+        // Destroy sprite and remove from scheduler
+        this.sprite.destroy();
+        this.scheduler.remove(this);
+        let index = activeEntities.indexOf(this);
+        if (index !== -1) {
+            activeEntities.splice(index, 1);
+        }
+    }
+
+    act() {
+        // This method should be implemented by subclasses
+    }
+}
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -895,6 +948,7 @@ class Player {
             if (monster) {
                 monsterHit = monster;
                 console.log("Monster hit!");
+                inspector.hideBox(); 
                 this.messageList.addMessage("You hit the " + monster.name + "!");
                 monster.bleeding = true;
                 arrowX = x;
@@ -1572,43 +1626,26 @@ function generateColorVariation(color, variation) {
     };
 }
 
-class Fire {
+class Fire extends Entity {
     constructor(x, y, scheduler, color='0xFFA500') {
-        activeEntities.push(this);
-        this.x = x;
-        this.y = y;
+        super(x, y, scheduler, fireFrames, 2); // Call the Entity constructor
+
         this.name = "Fire";
-        this.scheduler = scheduler;
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
         this.color = color;
-        this.sprite = new PIXI.AnimatedSprite(fireFrames);
-        this.sprite.animationSpeed = 0.1;
-        this.sprite.loop = true;
-        this.sprite.play();
-        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);  // Adjust position with SCALE_FACTOR
-        this.sprite.scale.set(SCALE_FACTOR);  // Adjust scale with SCALE_FACTOR
-        this.sprite.zIndex = 2;
+
+        // Setting specific properties for the Fire instance
         this.sprite.tint = this.color;  // apply the tint
         this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
-        gameContainer.addChild(this.sprite);
-        
+
+        // Updating the atmosphere map to include this fire instance
         if (!atmosphereMap[this.y]) {
             atmosphereMap[this.y] = [];
         }
         atmosphereMap[this.y][this.x] = { value: 300, sprite: this.sprite };
-        this.sprite.interactive = true;
-        this.sprite.on('mouseover', () => {
-            messageList.hideBox(); 
-            this.showInspectorInfo();
-            inspector.showBox();  
-            inspector.render();  
-        });
-        this.sprite.on('mouseout', () => {
-            inspector.hideBox();
-            messageList.showBox();
-        });
-        let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
 
+        // Specific tween for the Fire instance
+        let colorVariation = generateColorVariation(color, 0x101010); // color variation of flicker
         this.tween = new createjs.Tween.get(this.sprite)
             .to({ tint: colorVariation.lighter }, 20) 
             .wait(20)
@@ -1619,21 +1656,7 @@ class Fire {
             .call(() => {
                 this.tween.gotoAndPlay(0); // Restart the animation from the beginning
             });
-        
     }
-    showInspectorInfo() {
-        if (objectMap[this.y] && objectMap[this.y][this.x] && objectMap[this.y][this.x].item) {
-            // There's an Item at the same position on objectMap
-            const item = objectMap[this.y][this.x].item;
-            inspector.clearMessages();
-            inspector.addMessage(`Burning ${item.name}`);
-            inspector.showBox();  
-            inspector.render();
-        } else {
-            inspector.clearMessages();
-            inspector.addMessage(`${this.name}`); 
-        }
-    };
 
     act() {
         //createjs.Tween.tick();
@@ -1695,65 +1718,35 @@ class Fire {
             }
         }
     }
-    
-    
-    
+
 }
 
-class Smoke {
+class Smoke extends Entity {
     constructor(x, y, scheduler) {
-        //console.log("Creating smoke")
-        activeEntities.push(this);
-        this.x = x;
-        this.y = y;
-        this.scheduler = scheduler;
+        super(x, y, scheduler, smokeFrames, 2.5); // Call the Entity constructor with smoke frames
+
         this.name = "Smoke";
-        this.sprite = new PIXI.AnimatedSprite(smokeFrames); // Replace fireFrames with smokeFrames
-        this.sprite.animationSpeed = 0.1;
-        this.sprite.loop = true;
-        this.sprite.play();
-        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
-        this.sprite.scale.set(SCALE_FACTOR); 
-        this.sprite.zIndex = 2.5;  // Making sure smoke appears below fire, adjust as needed
-        gameContainer.addChild(this.sprite);
-        atmosphereMap[this.y][this.x] = 400;
-        this.sprite.interactive = true;
-        this.sprite.on('mouseover', () => {
-            messageList.hideBox(); 
-            this.showInspectorInfo();
-            inspector.showBox();  
-            inspector.render();  
-        });
-        this.sprite.on('mouseout', () => {
-            inspector.hideBox();
-            messageList.showBox();
-        });
-        
+        if (!atmosphereMap[this.y]) {
+            atmosphereMap[this.y] = [];
+        }
+        atmosphereMap[this.y][this.x] = { value: 400, sprite: this.sprite };
     }
 
-    showInspectorInfo() {
-        inspector.clearMessages();
-        inspector.addMessage(`${this.name}`);
-    }
     act() {
-        // 50% chance to disappear
+        // Smoke's behavior when it acts...
         if (Math.random() < 0.5) {
-            
-            // Remove from object map
             atmosphereMap[this.y][this.x] = null;
-
-            // Destroy sprite and remove from scheduler
             this.sprite.destroy();
             this.scheduler.remove(this);
             let index = activeEntities.indexOf(this);
             if (index !== -1) {
                 activeEntities.splice(index, 1);
             }
-
         }
-        checkGameState();
     }
+
 }
+
 
 //blood
 function dripBlood(x, y, tint) {
