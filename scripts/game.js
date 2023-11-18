@@ -49,6 +49,18 @@ let currentTreasureRoom; // right now one room has locked doors.
 let globalDoorCounter = 0;
 let currentLevelIndex = 1;
 
+const BOX_TOP_LEFT = {x: 8, y: 9};
+const BOX_HORIZONTAL = {x: 11, y: 8};
+const BOX_VERTICAL = {x: 17, y: 7};
+const BOX_TOP_RIGHT = {x: 6, y: 8};  
+const BOX_BOTTOM_LEFT = {x: 5, y: 1};
+const BOX_BOTTOM_RIGHT = {x: 7, y: 9};
+const BOX_VERTICAL_HORIZONTAL = {x: 12, y: 8};
+const BOX_UP_HORIZONTAL = {x: 8, y: 8};
+const BOX_LEFT_VERTICAL = {x: 18, y: 7};
+const BOX_RIGHT_VERTICAL = {x: 10, y: 8};
+const BOX_DOWN_HORIZONTAL = {x: 9, y: 8};
+const BOX_HORIZONTAL_HALF = {x: 20, y: 10};
 
 //console.log('Initializing maps');
 // maps are arrays that I am using really messily. they have a value which is a number
@@ -261,26 +273,30 @@ class Entity {
         this.y = y;
         this.scheduler = scheduler;
         this.name = "Entity"; // Default name, should be overridden by subclasses
-        this.sprite = new PIXI.AnimatedSprite(frames);
-        this.sprite.animationSpeed = 0.1;
-        this.sprite.loop = true;
-        this.sprite.play();
-        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
-        this.sprite.scale.set(SCALE_FACTOR);
-        this.sprite.zIndex = zIndex;
-        gameContainer.addChild(this.sprite);
+        if (frames.length > 0) {
+            this.sprite = new PIXI.AnimatedSprite(frames);
+            this.sprite.animationSpeed = 0.1;
+            this.sprite.loop = true;
+            this.sprite.play();
+            this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
+            this.sprite.scale.set(SCALE_FACTOR);
+            this.sprite.zIndex = zIndex;
+            gameContainer.addChild(this.sprite);
 
-        this.sprite.interactive = true;
-        this.sprite.on('mouseover', () => {
-            messageList.hideBox(); 
-            this.showInspectorInfo();
-            inspector.showBox();  
-            inspector.render();  
-        });
-        this.sprite.on('mouseout', () => {
-            inspector.hideBox();
-            messageList.showBox();
-        });
+            this.sprite.interactive = true;
+            this.sprite.on('mouseover', () => {
+                messageList.hideBox(); 
+                this.showInspectorInfo();
+                inspector.showBox();  
+                inspector.render();  
+            });
+            this.sprite.on('mouseout', () => {
+                inspector.hideBox();
+                messageList.showBox();
+            });
+        } else {
+            this.sprite = null;
+        }
     }
 
     showInspectorInfo() {
@@ -1656,6 +1672,7 @@ class Fire extends Entity {
             .call(() => {
                 this.tween.gotoAndPlay(0); // Restart the animation from the beginning
             });
+        this.checkAndDestroyKudzu(x, y);
     }
 
     act() {
@@ -1688,8 +1705,12 @@ class Fire extends Entity {
                 // Check if the new spot is valid and not already on fire
                 if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
                     floorMap[newY][newX].value === 157 && 
-                    (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300 && doorMap[newY][newX].value !== 100)) {
-                
+                    (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300)) {
+                    
+                    // Check and destroy Kudzu on the new tile
+                    this.checkAndDestroyKudzu(newX, newY);
+
+                    // Create new fire
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
                     atmosphereMap[newY][newX].value = 300;
                                     
@@ -1718,7 +1739,16 @@ class Fire extends Entity {
             }
         }
     }
-
+    checkAndDestroyKudzu(x, y) {
+        // Check if there is Kudzu at the specified coordinates
+        if (atmosphereMap[y] && atmosphereMap[y][x] && atmosphereMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu
+            let kudzu = atmosphereMap[y][x].sprite; // Get the Kudzu sprite
+            if (kudzu) {
+                kudzu.destroy(); // Destroy the Kudzu sprite
+                atmosphereMap[y][x] = null; // Clear the tile
+            }
+        }
+    }
 }
 
 class Smoke extends Entity {
@@ -1746,6 +1776,80 @@ class Smoke extends Entity {
     }
 
 }
+
+class Kudzu extends Entity {
+    constructor(x, y, scheduler, parentDirection = null) {
+        super(x, y, scheduler, [], 2);
+        this.name = "Kudzu";
+        this.isFlower = false;
+        scheduler.add(this, true);
+        this.color = 0xDFAADF;
+        this.parentDirection = parentDirection;
+        // Initialize the sprite using createSprite with an appropriate box drawing tile
+        this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), atmosphereMap);
+        this.sprite = this.spriteData.sprite;
+        // Mark this tile as occupied by Kudzu
+        atmosphereMap[this.y][this.x] = { value: 800, sprite: this.sprite };
+    }
+
+    act() {
+        // 1% chance to turn into a flower
+        if (!this.isFlower && Math.random() < 0.01) {
+            this.turnIntoFlower();
+            return;
+        }
+
+        // 20% chance to spread
+        if (Math.random() < 0.2) {
+            const directions = [
+                [-1, 0, 'left'], // left
+                [1, 0, 'right'],  // right
+                [0, -1, 'up'],    // up
+                [0, 1, 'down']    // down
+            ];
+
+            const availableTiles = directions
+                .map(d => ({ x: this.x + d[0], y: this.y + d[1], direction: d[2] }))
+                .filter(t => 
+                    t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
+                    floorMap[t.y][t.x].value === 157 && // Walkable tile
+                    !atmosphereMap[t.y][t.x]           // Not already occupied by Kudzu or Flower
+                );
+
+            if (availableTiles.length > 0) {
+                const randomTile = availableTiles[Math.floor(Math.random() * availableTiles.length)];
+                this.spreadTo(randomTile.x, randomTile.y, randomTile.direction);
+            }
+        }
+    }
+
+    spreadTo(x, y, direction) {
+        new Kudzu(x, y, this.scheduler, direction);
+    }
+
+    turnIntoFlower() {
+        this.spriteData = createSprite(this.x, this.y, {x: 12, y: 10}, atmosphereMap, null, false, this.color);
+        this.isFlower = true;
+    }
+
+    getBoxTileBasedOnDirection(direction) {
+        // Define the tile sets for each direction
+        const tilesForDirection = {
+            'left': [BOX_RIGHT_VERTICAL, BOX_TOP_RIGHT, BOX_VERTICAL_HORIZONTAL, BOX_DOWN_HORIZONTAL, BOX_UP_HORIZONTAL, BOX_HORIZONTAL],
+            'right': [BOX_LEFT_VERTICAL, BOX_TOP_LEFT, BOX_VERTICAL_HORIZONTAL, BOX_DOWN_HORIZONTAL, BOX_UP_HORIZONTAL, BOX_HORIZONTAL],
+            'up': [BOX_DOWN_HORIZONTAL, BOX_BOTTOM_LEFT, BOX_BOTTOM_RIGHT, BOX_VERTICAL_HORIZONTAL, BOX_LEFT_VERTICAL, BOX_RIGHT_VERTICAL, BOX_VERTICAL],
+            'down': [BOX_UP_HORIZONTAL, BOX_TOP_LEFT, BOX_TOP_RIGHT, BOX_VERTICAL_HORIZONTAL, BOX_LEFT_VERTICAL, BOX_RIGHT_VERTICAL, BOX_VERTICAL]
+        };
+
+        // Get the appropriate tile set based on direction
+        const tileSet = tilesForDirection[direction] || [BOX_VERTICAL_HORIZONTAL];
+
+        // Return a random tile from the tile set
+        return tileSet[Math.floor(Math.random() * tileSet.length)];
+    }
+}
+
+
 
 
 //blood
@@ -2618,12 +2722,6 @@ class UIBox {
     // a function to draw a box with sprites
     drawUIBox() {
         if (this.hidden) return; // If box is hidden, don't draw it
-        const BORDER_TOP_LEFT = { x: 8, y: 9 }; 
-        const BORDER_HORIZONTAL = { x: 11, y: 8 }; 
-        const BORDER_VERTICAL = { x: 17, y: 7 }; 
-        const BORDER_TOP_RIGHT = { x: 6, y: 8 }; 
-        const BORDER_BOTTOM_LEFT = { x: 5, y: 1 };
-        const BORDER_BOTTOM_RIGHT = { x: 7, y: 9 }; 
         //const WHITE_TILE = { x: 21, y: 7};
 
         // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
@@ -2631,15 +2729,15 @@ class UIBox {
         if (this.width == null){this.width = MAP_WIDTH};
 
         this.maskBox();
-        createSprite(0, 0, BORDER_TOP_LEFT,uiMap, 214);
+        createSprite(0, 0, BOX_TOP_LEFT,uiMap, 214);
         for (let x = 1; x < this.width - 1; x++) {
-            createSprite(x, 0, BORDER_HORIZONTAL,uiMap, 196);
+            createSprite(x, 0, BOX_HORIZONTAL,uiMap, 196);
         }
-        createSprite(this.width - 1, 0, BORDER_TOP_RIGHT,uiMap, 191);
+        createSprite(this.width - 1, 0, BOX_TOP_RIGHT,uiMap, 191);
 
         for (let y = 1; y < this.height; y++) {
-            createSprite(0, y, BORDER_VERTICAL, uiMap, 179);
-            createSprite(this.width - 1, y, BORDER_VERTICAL, uiMap, 179);
+            createSprite(0, y, BOX_VERTICAL, uiMap, 179);
+            createSprite(this.width - 1, y, BOX_VERTICAL, uiMap, 179);
             /* for(let x = 1; x < this.width - 1; x++) {
                 createSprite(x, y, WHITE_TILE, uiMap, 0);
             } */
@@ -2653,11 +2751,11 @@ class UIBox {
             }
 
             if (y === this.height - 1) {
-                createSprite(0, y + 1, BORDER_BOTTOM_LEFT, uiMap, 192);
+                createSprite(0, y + 1, BOX_BOTTOM_LEFT, uiMap, 192);
                 for (let x = 1; x < this.width - 1; x++) {
-                    createSprite(x, y + 1, BORDER_HORIZONTAL, uiMap, 196);
+                    createSprite(x, y + 1, BOX_HORIZONTAL, uiMap, 196);
                 }
-                createSprite(this.width - 1, y + 1, BORDER_BOTTOM_RIGHT, uiMap, 217);
+                createSprite(this.width - 1, y + 1, BOX_BOTTOM_RIGHT, uiMap, 217);
             }
         }
     }
@@ -2866,9 +2964,15 @@ function setup() {
 
         //add some fire
         for (let i = 0; i < 3; i++) {
-            let randomTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-            let fire = new Fire(randomTile.x, randomTile.y, scheduler, '0xFFCC33');
+            let randomFireTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+            let fire = new Fire(randomFireTile.x, randomFireTile.y, scheduler, '0xFFCC33');
             scheduler.add(fire, true); // the fire takes turns
+        }
+
+        for (let i = 0; i < 3; i++) {
+            let randomKudzuTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+            let kudzu = new Kudzu(randomKudzuTile.x, randomKudzuTile.y, scheduler, '0xFFCC33');
+            scheduler.add(kudzu, true); // the fire takes turns
         }
  
         engine.start(); // start the engine
