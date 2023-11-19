@@ -73,6 +73,8 @@ let floorMap = createEmptyMap();
 //floor is used for pathfinding, it also includes the 'footprint' tiles of walls, since those are used for pathfinding
 let objectMap = createEmptyMap();
 //items
+let growthMap = createEmptyMap();
+//plants
 let doorMap = createEmptyMap();
 //doors
 let wallMap = createEmptyMap();
@@ -191,6 +193,13 @@ function playPickupSound() {
     sound.play('pickup');
 }
 
+function playBloomSound() {
+    const soundNames = ['tone2', 'tone3', 'tone4', 'tone5'];
+    const randomSound = soundNames[Math.floor(Math.random() * soundNames.length)];
+
+    sound.play(randomSound);
+}
+
 function playFireballSound() {
     sound.play('fireball');
 }
@@ -267,11 +276,12 @@ const PlayerType = Object.freeze({
 });
 
 class Entity {
-    constructor(x, y, scheduler, frames, zIndex) {
+    constructor(x, y, scheduler, frames, zIndex, map) {
         activeEntities.push(this);
         this.x = x;
         this.y = y;
         this.scheduler = scheduler;
+        this.map = map;
         this.name = "Entity"; // Default name, should be overridden by subclasses
         if (frames.length > 0) {
             this.sprite = new PIXI.AnimatedSprite(frames);
@@ -297,27 +307,28 @@ class Entity {
         } else {
             this.sprite = null;
         }
+        this.destroy = () => {
+            // Check if the map and the specific tile in the map exist
+            if (this.map[this.y] && this.map[this.y][this.x]) {
+                this.map[this.y][this.x] = null; // Clear the tile from the map
+            }
+
+            // Destroy sprite and remove from scheduler
+            if (this.sprite) {
+                this.sprite.destroy();
+            }
+            this.scheduler.remove(this);
+            let index = activeEntities.indexOf(this);
+            if (index !== -1) {
+                activeEntities.splice(index, 1);
+            }
+        };
     }
 
     showInspectorInfo() {
         // This method should be overridden by subclasses to display specific information
         inspector.clearMessages();
         inspector.addMessage(`${this.name}`);
-    }
-
-    destroy() {
-        // Remove from object map and active entities
-        if (atmosphereMap[this.y] && atmosphereMap[this.y][this.x]) {
-            atmosphereMap[this.y][this.x] = null;
-        }
-
-        // Destroy sprite and remove from scheduler
-        this.sprite.destroy();
-        this.scheduler.remove(this);
-        let index = activeEntities.indexOf(this);
-        if (index !== -1) {
-            activeEntities.splice(index, 1);
-        }
     }
 
     act() {
@@ -1741,11 +1752,11 @@ class Fire extends Entity {
     }
     checkAndDestroyKudzu(x, y) {
         // Check if there is Kudzu at the specified coordinates
-        if (atmosphereMap[y] && atmosphereMap[y][x] && atmosphereMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu
-            let kudzu = atmosphereMap[y][x].sprite; // Get the Kudzu sprite
+        if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu
+            let kudzu = growthMap[y][x].sprite; // Get the Kudzu sprite
             if (kudzu) {
                 kudzu.destroy(); // Destroy the Kudzu sprite
-                atmosphereMap[y][x] = null; // Clear the tile
+                growthMap[y][x] = null; // Clear the tile
             }
         }
     }
@@ -1786,10 +1797,10 @@ class Kudzu extends Entity {
         this.color = 0xDFAADF;
         this.parentDirection = parentDirection;
         // Initialize the sprite using createSprite with an appropriate box drawing tile
-        this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), atmosphereMap);
+        this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), growthMap);
         this.sprite = this.spriteData.sprite;
         // Mark this tile as occupied by Kudzu
-        atmosphereMap[this.y][this.x] = { value: 800, sprite: this.sprite };
+        growthMap[this.y][this.x] = { value: 800, sprite: this.sprite };
     }
 
     act() {
@@ -1799,8 +1810,8 @@ class Kudzu extends Entity {
             return;
         }
 
-        // 20% chance to spread
-        if (Math.random() < 0.2) {
+        // 10% chance to spread
+        if (Math.random() < 0.1) {
             const directions = [
                 [-1, 0, 'left'], // left
                 [1, 0, 'right'],  // right
@@ -1813,7 +1824,9 @@ class Kudzu extends Entity {
                 .filter(t => 
                     t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
                     floorMap[t.y][t.x].value === 157 && // Walkable tile
-                    !atmosphereMap[t.y][t.x]           // Not already occupied by Kudzu or Flower
+                    doorMap[t.y][t.x] != 101 && // Not a door
+                    atmosphereMap[t.y][t.x] != 300 && // Not already occupied by Fire
+                    !growthMap[t.y][t.x]           // Not already occupied by Kudzu or Flower
                 );
 
             if (availableTiles.length > 0) {
@@ -1828,8 +1841,19 @@ class Kudzu extends Entity {
     }
 
     turnIntoFlower() {
-        this.spriteData = createSprite(this.x, this.y, {x: 12, y: 10}, atmosphereMap, null, false, this.color);
-        this.isFlower = true;
+        // Introduce a delay before turning into a flower
+        setTimeout(() => {
+            // Generate a random tint for the flower
+            const baseColor = 0xDDA0DD; // Light violet as the base color
+            const colorVariation = Math.floor(Math.random() * 0x20); // Slight variation in color
+            const randomTint = baseColor + colorVariation - (colorVariation / 2);
+    
+            this.spriteData = createSprite(this.x, this.y, {x: 12, y: 10}, growthMap, null, false, randomTint);
+            this.isFlower = true;
+    
+            // Play a random bloom sound after the sprite change
+            playBloomSound();
+        }, Math.random() * 1000); // Delay between 0 to 1000 milliseconds
     }
 
     getBoxTileBasedOnDirection(direction) {
@@ -1854,7 +1878,9 @@ class Kudzu extends Entity {
 
 //blood
 function dripBlood(x, y, tint) {
-    createSprite(x, y, {x: 21, y: 7}, bloodMap, true, false, tint);
+    bloodSprite = createSprite(x, y, {x: 21, y: 7}, bloodMap, true, false, tint);
+    bloodSprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+
     console.log("drip");
 }
 //items
@@ -2278,7 +2304,7 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
             container.removeChild(backgroundMap[y][x].sprite);
             backgroundMap[y][x].sprite = null;
         }
-    } else if (layer === objectMap || layer === doorMap) {
+    } else if (layer === objectMap || layer === doorMap || layer === growthMap) {
         sprite.zIndex = 2; // Set zIndex for objectMap
     } else if (layer === floorMap) {
         sprite.zIndex = 1;
@@ -2965,13 +2991,13 @@ function setup() {
         //add some fire
         for (let i = 0; i < 3; i++) {
             let randomFireTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-            let fire = new Fire(randomFireTile.x, randomFireTile.y, scheduler, '0xFFCC33');
+            let fire = new Fire(randomFireTile.x, randomFireTile.y, scheduler, '0xFFCC33', 2, atmosphereMap);
             scheduler.add(fire, true); // the fire takes turns
         }
 
         for (let i = 0; i < 3; i++) {
             let randomKudzuTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-            let kudzu = new Kudzu(randomKudzuTile.x, randomKudzuTile.y, scheduler, '0xFFCC33');
+            let kudzu = new Kudzu(randomKudzuTile.x, randomKudzuTile.y, scheduler, 'left', 2, growthMap);
             scheduler.add(kudzu, true); // the fire takes turns
         }
  
