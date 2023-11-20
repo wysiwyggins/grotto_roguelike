@@ -1683,7 +1683,8 @@ class Fire extends Entity {
             .call(() => {
                 this.tween.gotoAndPlay(0); // Restart the animation from the beginning
             });
-        this.checkAndDestroyKudzu(x, y);
+        //this.checkAndDestroyKudzu(x, y);
+        this.checkAndDestroyFlammable(x, y);
     }
 
     act() {
@@ -1719,7 +1720,9 @@ class Fire extends Entity {
                     (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300)) {
                     
                     // Check and destroy Kudzu on the new tile
-                    this.checkAndDestroyKudzu(newX, newY);
+                    //this.checkAndDestroyKudzu(newX, newY);
+
+                    this.checkAndDestroyFlammable(newX, newY);
 
                     // Create new fire
                     let fire = new Fire(newX, newY, this.scheduler, '0xFFCC33');
@@ -1750,7 +1753,7 @@ class Fire extends Entity {
             }
         }
     }
-    checkAndDestroyKudzu(x, y) {
+    /* checkAndDestroyKudzu(x, y) {
         // Check if there is Kudzu at the specified coordinates
         if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu
             let kudzu = growthMap[y][x].sprite; // Get the Kudzu sprite
@@ -1758,6 +1761,21 @@ class Fire extends Entity {
                 kudzu.destroy(); // Destroy the Kudzu sprite
                 growthMap[y][x] = null; // Clear the tile
             }
+        }
+    } */
+    checkAndDestroyFlammable(x, y) {
+        // Check and destroy flammable entities
+        if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu or other entities
+            let entity = growthMap[y][x].sprite;
+            if (entity && entity.isFlammable) {
+                entity.destroy();
+            }
+        }
+
+        // Check and destroy flammable items
+        if (objectMap[y] && objectMap[y][x] && objectMap[y][x].item && objectMap[y][x].item.isFlammable) {
+            let item = objectMap[y][x].item;
+            item.destroy();
         }
     }
 }
@@ -1795,6 +1813,7 @@ class Kudzu extends Entity {
         this.isFlower = false;
         scheduler.add(this, true);
         this.color = 0xDFAADF;
+        this.isFlammable = true;
         this.parentDirection = parentDirection;
         // Initialize the sprite using createSprite with an appropriate box drawing tile
         this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), growthMap);
@@ -1838,9 +1857,10 @@ class Kudzu extends Entity {
                 .filter(t => 
                     t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
                     floorMap[t.y][t.x].value === 157 && // Walkable tile
-                    doorMap[t.y][t.x] != 101 && // Not a door
-                    atmosphereMap[t.y][t.x] != 300 && // Not already occupied by Fire
-                    !growthMap[t.y][t.x]           // Not already occupied by Kudzu or Flower
+                    doorMap[t.y][t.x].value != 101 && // Not a locked door
+                    doorMap[t.y][t.x].value != 100 && // not an unlocked door
+                    atmosphereMap[t.y][t.x]?.value != 300 && // Not already occupied by Fire, using optional chaining
+                    !growthMap[t.y][t.x] // Not already occupied by Kudzu or Flower
                 );
 
             if (availableTiles.length > 0) {
@@ -1922,6 +1942,7 @@ class Item {
         this.id = id;
         this._tileIndex = {x: 17, y: 2};
         this.isFlammable = false;
+        this.map = objectMap;
         switch (type) {
             case ItemType.BOW:
                 this._name = 'Bow';
@@ -1981,6 +2002,22 @@ class Item {
         }
         objectMap[this.y][this.x] = { value: this._objectNumber, sprite: this.sprite, item: this };
         activeItems.push(this);
+        this.destroy = () => {
+            // Check if the map and the specific tile in the map exist
+            if (this.map[this.y] && this.map[this.y][this.x]) {
+                this.map[this.y][this.x] = null; // Clear the tile from the map
+            }
+
+            // Destroy sprite and remove from scheduler
+            if (this.sprite) {
+                this.sprite.destroy();
+            }
+            this.scheduler.remove(this);
+            let index = activeEntities.indexOf(this);
+            if (index !== -1) {
+                activeEntities.splice(index, 1);
+            }
+        };
     }
 
     get name() {
