@@ -1801,6 +1801,20 @@ class Kudzu extends Entity {
         this.sprite = this.spriteData.sprite;
         // Mark this tile as occupied by Kudzu
         growthMap[this.y][this.x] = { value: 800, sprite: this.sprite };
+        if (this.sprite) {
+            this.sprite.interactive = true;
+            this.sprite.on('mouseover', () => {
+                console.log("Kudzu mouseover triggered"); // Debugging log
+                messageList.hideBox(); 
+                this.showInspectorInfo();
+                inspector.showBox();  
+                inspector.render();  
+            });
+            this.sprite.on('mouseout', () => {
+                inspector.hideBox();
+                messageList.showBox();
+            });
+        }
     }
 
     act() {
@@ -1845,10 +1859,10 @@ class Kudzu extends Entity {
         setTimeout(() => {
             // Generate a random tint for the flower
             const baseColor = 0xDDA0DD; // Light violet as the base color
-            const colorVariation = Math.floor(Math.random() * 0x20); // Slight variation in color
+            const colorVariation = Math.floor(Math.random() * 0x40); // Slight variation in color
             const randomTint = baseColor + colorVariation - (colorVariation / 2);
     
-            this.spriteData = createSprite(this.x, this.y, {x: 12, y: 10}, growthMap, null, false, randomTint);
+            this.spriteData = createSprite(this.x, this.y, {x: 11, y: 10}, growthMap, null, false, randomTint);
             this.isFlower = true;
     
             // Play a random bloom sound after the sprite change
@@ -1871,6 +1885,7 @@ class Kudzu extends Entity {
         // Return a random tile from the tile set
         return tileSet[Math.floor(Math.random() * tileSet.length)];
     }
+    
 }
 
 
