@@ -956,7 +956,7 @@ class Player {
         let arrowX = this.x;
         let arrowY = this.y;
         let monsterHit = null;
-        
+        let fireHit = false;
         for (let point of path) {
             let x = point.x;
             let y = point.y;
@@ -982,12 +982,17 @@ class Player {
                 arrowY = y;
                 break;
             }
+            if (atmosphereMap[y] && atmosphereMap[y][x] && atmosphereMap[y][x].value === 300) {
+                fireHit = true;
+            }
     
             // If not, then this is the new arrow position
             arrowX = x;
             arrowY = y;
         }
-        
+        if (fireHit) {
+            new Fire(arrowX, arrowY, this.scheduler, '0xFFCC33');
+        }
         // Create the arrow sprite at the final position
         setTimeout(function() {
             new Item(ItemType.ARROW, arrowX, arrowY, '0xFFFFFF', 2);
@@ -2007,12 +2012,11 @@ class Item {
             if (this.map[this.y] && this.map[this.y][this.x]) {
                 this.map[this.y][this.x] = null; // Clear the tile from the map
             }
-
+        
             // Destroy sprite and remove from scheduler
             if (this.sprite) {
                 this.sprite.destroy();
             }
-            this.scheduler.remove(this);
             let index = activeEntities.indexOf(this);
             if (index !== -1) {
                 activeEntities.splice(index, 1);
