@@ -208,7 +208,7 @@ function playBumpSound() {
     sound.play('tap1');
 }
   
-   
+// level saving and loading doesn't work yet, but I'm leaving it in for now
 
 let levels = [];
 // levels
@@ -221,6 +221,7 @@ class Level {
         this.objectMap = createEmptyMap();
         this.doorMap = createEmptyMap();
         this.wallMap = createEmptyMap();
+        this.growthMap = createEmptyMap();
         this.atmosphereMap = createEmptyMap();
         this.activeEntities = [];
         this.activeItems = [];
@@ -338,11 +339,11 @@ class Entity {
 
 class Player {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
-        this.name = "Bivoj";
         this.isDead = false;
         this.isSkeletonized = false;
         this.isTargeting = false;
         this.type = type;
+        this.name = "You";
         this.x = x;
         this.y = y;
         this.prevX = null;
@@ -396,42 +397,52 @@ class Player {
         // You can set the specific footprint and head tiles for each player type here.
         switch(type) {
             case PlayerType.HUMAN:
+                this.name ="Bivoj the human";
                 this.footprintPosition = {x: 10, y: 5};
                 this.headPosition = {x: 1, y: 0};
                 break;
             case PlayerType.ANIMAL:
+                this.name = "An animal";
                 this.footprintPosition = {x: 10, y: 7}; 
                 this.headPosition = {x: 1, y: 0}; 
                 break;
             case PlayerType.GHOST:
+                this.name = "A ghost";
                 this.footprintPosition = {x: 19, y: 7}; 
                 this.headPosition = {x: 2, y: 0}; 
                 break;
             case PlayerType.ROBOT:
+                this.name = "A robot";
                 this.footprintPosition = {x: 10, y: 5}; 
-                this.headPosition = {x: 13, y: 7}; 
+                this.headPosition = {x: 13, y: 6}; 
                 break;
             case PlayerType.BIRD:
+                this.name = "A bird";
                 this.footprintPosition = {x: 13, y: 7}; 
                 this.headPosition = {x: 13, y: 7}; 
                 break;
             case PlayerType.OBELISK:
+                this.name = "An obelisk";
                 this.footprintPosition = {x: 6, y: 7}; 
                 this.headPosition = {x: 18, y: 8}; 
                 break;
             case PlayerType.FUNGUS:
+                this.name = "A fungus";
                 this.footprintPosition = {x: 17, y: 7}; 
                 this.headPosition = {x: 9, y: 8}; 
                 break;
             case PlayerType.VEGETABLE:
+                this.name = "A vegetable";
                 this.footprintPosition = {x: 13, y: 7};
                 this.headPosition = {x: 6, y: 8};  
                 break;
             case PlayerType.SKELETON:
+                this.name = "A skeleton";
                 this.footprintPosition = {x: 8, y: 7};
                 this.headPosition = {x: 9, y: 7};  
                 break;
             case PlayerType.PILE:
+                this.name = "A pile of ashes";
                 this.footprintPosition = {x: 7, y: 1};
                 this.headPosition = {x: 0, y: 0};  
                 break;
@@ -2994,8 +3005,9 @@ function setup() {
 
     let randomTile2 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
 
-    let randomTile3 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
-    let randomTile4 = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+    let randomTile3 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile4 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile5 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
 
     //add exits, they don't work yet
    /*  let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
@@ -3035,6 +3047,10 @@ function setup() {
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
+        player2 = new Player(PlayerType.ROBOT, randomTile5.x, randomTile5.y, scheduler, engine, messageList, inspector);
+        createPlayerSprite(player2);
+        scheduler.add(player2, true);
+
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
@@ -3052,7 +3068,7 @@ function setup() {
         }
 
         for (let i = 0; i < 3; i++) {
-            let randomKudzuTile = walkableTiles[Math.floor(Math.random() * walkableTiles.length)];
+            let randomKudzuTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
             let kudzu = new Kudzu(randomKudzuTile.x, randomKudzuTile.y, scheduler, 'left', 2, growthMap);
             scheduler.add(kudzu, true); // the fire takes turns
         }
