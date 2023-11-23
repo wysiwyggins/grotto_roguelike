@@ -283,7 +283,8 @@ class Entity {
         this.y = y;
         this.scheduler = scheduler;
         this.map = map;
-        this.name = "Entity"; // Default name, should be overridden by subclasses
+        this.name = "Entity";
+        this.isFlammable = false;
         if (frames.length > 0) {
             this.sprite = new PIXI.AnimatedSprite(frames);
             this.sprite.animationSpeed = 0.1;
@@ -1769,19 +1770,9 @@ class Fire extends Entity {
             }
         }
     }
-    /* checkAndDestroyKudzu(x, y) {
-        // Check if there is Kudzu at the specified coordinates
-        if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu
-            let kudzu = growthMap[y][x].sprite; // Get the Kudzu sprite
-            if (kudzu) {
-                kudzu.destroy(); // Destroy the Kudzu sprite
-                growthMap[y][x] = null; // Clear the tile
-            }
-        }
-    } */
     checkAndDestroyFlammable(x, y) {
         // Check and destroy flammable entities
-        if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value === 800) { // Assuming 800 is the value for Kudzu or other entities
+        if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value) {
             let entity = growthMap[y][x].sprite;
             if (entity && entity.isFlammable) {
                 entity.destroy();
@@ -1829,11 +1820,11 @@ class Kudzu extends Entity {
         this.isFlower = false;
         scheduler.add(this, true);
         this.color = 0xDFAADF;
-        this.isFlammable = true;
         this.parentDirection = parentDirection;
         // Initialize the sprite using createSprite with an appropriate box drawing tile
         this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), growthMap);
         this.sprite = this.spriteData.sprite;
+        this.sprite.isFlammable = true;
         // Mark this tile as occupied by Kudzu
         growthMap[this.y][this.x] = { value: 800, sprite: this.sprite };
         if (this.sprite) {
