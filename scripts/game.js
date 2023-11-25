@@ -190,7 +190,7 @@ function playArrowSound(didHit) {
 };
 
 function playPickupSound() {
-    sound.play('pickup');
+    sound.play('tap3');
 }
 
 function playBloomSound() {
@@ -641,7 +641,8 @@ class Player {
                 return false;
             } else {
                 // Player doesn't have the right key
-                messageList.addMessage(`The ${door.name} is locked.`);
+                messageList.addMessage(`The ${door.name}is locked.`);
+                playBumpSound()
                 return true;
             }
         }
@@ -1787,8 +1788,9 @@ class Fire extends Entity {
         // Check and destroy flammable items
         if (objectMap[y] && objectMap[y][x] && objectMap[y][x].item && objectMap[y][x].item.isFlammable) {
             let item = objectMap[y][x].item;
-            if (item && item._texture) {
+            if (item && item.sprite && item.sprite.texture) {
                 item.destroy();
+               //console.log("Destroyed flammable item");
             }
         }
     }
@@ -1824,7 +1826,7 @@ class Kudzu extends Entity {
     constructor(x, y, scheduler, parentDirection = null) {
         super(x, y, scheduler, [], 2);
         this.name = "Kudzu";
-        this.isFlower = false;
+        this.hasFlower = false;
         scheduler.add(this, true);
         this.parentDirection = parentDirection;
         // Initialize the sprite using createSprite with an appropriate box drawing tile
@@ -1851,7 +1853,7 @@ class Kudzu extends Entity {
 
     act() {
         // 1% chance to turn into a flower
-        if (!this.isFlower && Math.random() < 0.01) {
+        if (!this.hasFlower && Math.random() < 0.01) {
             this.addFlower();
             return;
         }
@@ -1870,8 +1872,7 @@ class Kudzu extends Entity {
                 .filter(t => 
                     t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
                     floorMap[t.y][t.x].value === 157 && // Walkable tile
-                    doorMap[t.y][t.x].value != 101 && // Not a locked door
-                    doorMap[t.y][t.x].value != 100 && // not an unlocked door
+                    doorMap[t.y][t.x].value == null && // Not a door
                     atmosphereMap[t.y][t.x]?.value != 300 && // Not already occupied by Fire, using optional chaining
                     !growthMap[t.y][t.x] // Not already occupied by Kudzu or Flower
                 );
@@ -1900,7 +1901,8 @@ class Kudzu extends Entity {
     
             // Use the sprite from the flower item
             this.spriteData = flowerItem.sprite;
-            this.isFlower = true;
+            this.hasFlower = true;
+            playBloomSound();
         }, Math.random() * 1000); // Delay between 0 to 1000 milliseconds
     }
 
