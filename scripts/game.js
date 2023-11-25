@@ -394,6 +394,7 @@ class Player {
         this.burningTurns = 0;
         this.inventory = [];
         this.arrows = 0;
+        this.flowers = 0;
         
         // You can set the specific footprint and head tiles for each player type here.
         switch(type) {
@@ -1061,11 +1062,14 @@ class Player {
         this.updatePosition(x, y); // Add this line to update the player's position
     
         // Add the item to the player's inventory
-        if (item.type != ItemType.ARROW) {
+        if (item.type != ItemType.ARROW && item.type != ItemType.FLOWER) {
             this.inventory.push(item);
         }
         if (item.type === ItemType.BOW || item.type === ItemType.ARROW) {
             this.arrows++;
+        }
+        if (item.type === ItemType.FLOWER) {
+            this.flowers++;
         }
 
         // Log a message about the item picked up
@@ -1181,6 +1185,7 @@ class Player {
             }
         }
         this.inspector.addMessage( "Arrows: " + this.arrows);
+        this.inspector.addMessage( "Flowers: " + this.flowers);
     }
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
@@ -1774,15 +1779,17 @@ class Fire extends Entity {
         // Check and destroy flammable entities
         if (growthMap[y] && growthMap[y][x] && growthMap[y][x].value) {
             let entity = growthMap[y][x].sprite;
-            if (entity && entity.isFlammable) {
+            if (entity && entity.isFlammable && entity._texture) {
                 entity.destroy();
             }
         }
-
+    
         // Check and destroy flammable items
         if (objectMap[y] && objectMap[y][x] && objectMap[y][x].item && objectMap[y][x].item.isFlammable) {
             let item = objectMap[y][x].item;
-            item.destroy();
+            if (item && item._texture) {
+                item.destroy();
+            }
         }
     }
 }
@@ -1819,7 +1826,6 @@ class Kudzu extends Entity {
         this.name = "Kudzu";
         this.isFlower = false;
         scheduler.add(this, true);
-        this.color = 0xDFAADF;
         this.parentDirection = parentDirection;
         // Initialize the sprite using createSprite with an appropriate box drawing tile
         this.spriteData = createSprite(this.x, this.y, this.getBoxTileBasedOnDirection(parentDirection), growthMap);
@@ -1846,7 +1852,7 @@ class Kudzu extends Entity {
     act() {
         // 1% chance to turn into a flower
         if (!this.isFlower && Math.random() < 0.01) {
-            this.turnIntoFlower();
+            this.addFlower();
             return;
         }
 
@@ -1881,19 +1887,20 @@ class Kudzu extends Entity {
         new Kudzu(x, y, this.scheduler, direction);
     }
 
-    turnIntoFlower() {
+    addFlower() {
         // Introduce a delay before turning into a flower
         setTimeout(() => {
             // Generate a random tint for the flower
             const baseColor = 0xDDA0DD; // Light violet as the base color
-            const colorVariation = Math.floor(Math.random() * 0x40); // Slight variation in color
-            const randomTint = baseColor + colorVariation - (colorVariation / 2);
+            const colorVariation = Math.floor(Math.random() * 0x20); // Slight variation in color
+            const randomTint = Math.min(baseColor + colorVariation, 0xFFFFFF); // Ensure the color value does not exceed the maximum
+            //const colorValue = parseInt(randomTint.hex.slice(1), 16);
+            // Create a new Item instance for the flower
+            const flowerItem = new Item(ItemType.FLOWER, this.x, this.y, 0, randomTint, "Flower");
     
-            this.spriteData = createSprite(this.x, this.y, {x: 11, y: 10}, growthMap, null, false, randomTint);
+            // Use the sprite from the flower item
+            this.spriteData = flowerItem.sprite;
             this.isFlower = true;
-    
-            // Play a random bloom sound after the sprite change
-            playBloomSound();
         }, Math.random() * 1000); // Delay between 0 to 1000 milliseconds
     }
 
@@ -1938,15 +1945,17 @@ const ItemType = Object.freeze({
     "FOOD": 0,
     "BOW": 1,
     "KEY": 2,
-    "ARROW": 3
+    "ARROW": 3,
+    "FLOWER": 4
 });
 
 class Item {
+    static idCounter = 0;
     constructor(type, x, y, id, colorValue, name) {
         this.x = x;
         this.y = y;
         this.colorValue = colorValue;
-        this.id = id;
+        this.id = Item.idCounter++;
         this._tileIndex = {x: 17, y: 2};
         this.isFlammable = false;
         this.map = objectMap;
@@ -1971,6 +1980,14 @@ class Item {
                 this.isFlammable = true;
                 this._tileIndex = {x: 3, y: 1};
                 this._objectNumber = 2;
+                break;
+            case ItemType.FLOWER:
+                this._name = 'Flower';
+                this._type = type;
+                this.isFlammable = true;
+                this._tileIndex = {x: 11, y: 10};
+                this._objectNumber = 200;
+                this.colorValue = colorValue;
                 break;
         }
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
@@ -2000,7 +2017,9 @@ class Item {
         this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);
         this.sprite.scale.set(SCALE_FACTOR);
         this.sprite.zIndex = 2;
-
+        if (type === ItemType.FLOWER || type === ItemType.KEY) {
+            this.sprite.tint = colorValue;
+        }
         // Add sprite to gameContainer
         gameContainer.addChild(this.sprite);
 
