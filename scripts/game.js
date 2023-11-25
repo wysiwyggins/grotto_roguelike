@@ -632,16 +632,17 @@ class Player {
 
     isLockedDoor(door) {
         if (door && door.isLocked) {
-            const keyItem = player.inventory.find(item => item.type === ItemType.KEY && item.id === door.id);
+            // Check the key in the current player's inventory
+            const keyItem = this.inventory.find(item => item.type === ItemType.KEY && item.id === door.id);
             if (keyItem) {
                 door.unlock();
-                player.removeItem(keyItem);
+                this.removeItem(keyItem);
                 sound.play('lock');
                 messageList.addMessage(`You unlocked the ${door.name} with your key.`);
                 return false;
             } else {
                 // Player doesn't have the right key
-                messageList.addMessage(`The ${door.name}is locked.`);
+                messageList.addMessage(`The ${door.name} is locked.`);
                 playBumpSound()
                 return true;
             }
