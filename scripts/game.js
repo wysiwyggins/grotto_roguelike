@@ -1077,7 +1077,44 @@ class Player {
         // Log a message about the item picked up
         this.messageList.addMessage(`You picked up a ${item.name}.`);
     }
-
+    ropItemOnTile(item, x, y) {
+        // Remove the item from the player's inventory
+        const index = this.inventory.indexOf(item);
+        if (index > -1) {
+            this.inventory.splice(index, 1);
+        }
+    
+        // Add the item to the object map
+        objectMap[y][x] = item;
+    
+        // Update the position of the item's sprite
+        item.sprite.x = x * TILE_SIZE;
+        item.sprite.y = y * TILE_SIZE;
+    }
+    findAdjacentWalkableTile() {
+        // Define the coordinates for the adjacent tiles
+        const adjacentCoords = [
+            {x: this.x, y: this.y - 1}, // Up
+            {x: this.x, y: this.y + 1}, // Down
+            {x: this.x - 1, y: this.y}, // Left
+            {x: this.x + 1, y: this.y}, // Right
+        ];
+    
+        // Iterate over the coordinates
+        for (const coord of adjacentCoords) {
+            // Check if the coordinate is within the map bounds
+            if (coord.x >= 0 && coord.x < MAP_WIDTH && coord.y >= 0 && coord.y < MAP_HEIGHT) {
+                // Check if the tile at the coordinate is walkable
+                if (floorMap[coord.y][coord.x].value === 157) {
+                    // Return the coordinate
+                    return coord;
+                }
+            }
+        }
+    
+        // No walkable tile found
+        return null;
+    }
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
@@ -1109,6 +1146,17 @@ class Player {
             this.isSkeletonized = true;
             
             this.skeletonize();
+            for (let i = this.inventory.length - 1; i >= 0; i--) {
+                const item = this.inventory[i];
+                if (item.type === ItemType.KEY) {
+                    // Find an adjacent, walkable tile
+                    const adjacentTile = this.findAdjacentWalkableTile();
+                    if (adjacentTile) {
+                        // Drop the key on the tile
+                        this.dropItemOnTile(item, adjacentTile.x, adjacentTile.y);
+                    }
+                }
+            }
         }
         // Check if player is REALLY dead
         if (this.blood <=-100 && this.isSkeletonized == true) {
@@ -1935,14 +1983,7 @@ function dripBlood(x, y, tint) {
 
     console.log("drip");
 }
-//items
 
-let CanBePickedUp = {
-    pickup: function(player) {
-        player.addItem(this);
-        // Remove the item from the map or its container
-    }
-}
 
 const ItemType = Object.freeze({
     "FOOD": 0,
@@ -2279,12 +2320,6 @@ class Exit {
     
     
 }
-
-
-
-
-// Mixin CanBePickedUp into Item
-Object.assign(Item.prototype, CanBePickedUp);
 
 
 // This function advances the turn after a delay of 1/2 second
