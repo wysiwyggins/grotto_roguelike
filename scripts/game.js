@@ -1020,7 +1020,6 @@ class Player {
         if (monsterHit) {
             // Deal damage to the monster
             monsterHit.blood -= 10;
-            
             playArrowSound(true);
         } else {
             this.messageList.addMessage("You missed.");
@@ -1732,7 +1731,7 @@ class Fire extends Entity {
         this.name = "Fire";
         this.turnsLeft = 5; // maximum number of turns this fire can create more fires
         this.color = color;
-
+        this.isFlammable = true;
         // Setting specific properties for the Fire instance
         this.sprite.tint = this.color;  // apply the tint
         this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
@@ -1839,8 +1838,13 @@ class Fire extends Entity {
             let item = objectMap[y][x].item;
             if (item && item.sprite && item.sprite.texture) {
                 item.destroy();
+                messageList.addMessage(`The ${item.name} dissapears in flames.`);
                //console.log("Destroyed flammable item");
             }
+        }
+
+        if (player.x === x && player.y === y) {
+            player.isBurning = true;
         }
     }
 }
@@ -2448,6 +2452,102 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
     return layer[y][x]; 
 }
 
+function createSprite(x, y, index, layer, value = null, overlay = false, tint = null) {
+    if (!layer[y]) {
+        layer[y] = [];
+    }
+    let container;
+    if (layer === uiMaskMap){
+        container = uiMaskContainer;
+    } else if (layer === uiMap || layer === overlayMap) {
+        container = uiContainer;
+    } else {
+        container = gameContainer;
+    }
+    if (layer?.[y]?.[x]?.sprite) {
+        container.removeChild(layer[y][x].sprite);
+    }
+
+    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
+    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
+        index.x * TILE_WIDTH,
+        index.y * TILE_HEIGHT,
+        TILE_WIDTH, TILE_HEIGHT));
+
+    let sprite = new PIXI.Sprite(texture);
+    sprite.scale.set(SCALE_FACTOR);
+    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
+    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    if (tint) {
+        sprite.tint = tint;
+    }
+    // Set initial opacity to 1
+    if (layer === wallMap || layer === uiMap) {
+        sprite.alpha = 1;
+    }
+    if (layer === atmosphereMap){
+        sprite.zIndex = 3.9;
+    }
+    if (layer === wallMap) {
+        sprite.zIndex = 3;
+
+        // Remove sprites on layers beneath the wall layer if they exist at the same position
+        if (wallMap?.[y]?.[x]?.sprite) {
+            container.removeChild(wallMap[y][x].sprite);
+            wallMap[y][x].sprite = null;
+        }
+        if (floorMap?.[y]?.[x]?.sprite) {
+            container.removeChild(floorMap[y][x].sprite);
+            floorMap[y][x].sprite = null;
+        }
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            container.removeChild(backgroundMap[y][x].sprite);
+            backgroundMap[y][x].sprite = null;
+        }
+    } else if (layer === objectMap || layer === doorMap || layer === growthMap) {
+        sprite.zIndex = 2; // Set zIndex for objectMap
+    } else if (layer === floorMap) {
+        sprite.zIndex = 1;
+        
+        // Remove sprites on the background layer if they exist at the same position
+        if (backgroundMap?.[y]?.[x]?.sprite) {
+            container.removeChild(backgroundMap[y][x].sprite);         
+        }
+    } else if (layer === bloodMap) { 
+        sprite.zIndex = 1.1;
+    }
+
+
+    container.addChild(sprite);
+
+    let existingValue = layer[y][x] ? layer[y][x].value : null;
+    layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
+    // Update zIndex for objectMap based on y position compared to walls
+    if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
+        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+            sprite.zIndex = 4; // Object is behind the wall
+        }
+    }
+    
+    //return sprite;
+    return layer[y][x]; 
+}
+function getComplimentaryColor(color) {
+    // Extract the RGB components from the color
+    const r = (color >> 16) & 0xFF;
+    const g = (color >> 8) & 0xFF;
+    const b = color & 0xFF;
+
+    // Calculate the complimentary color
+    const rComplimentary = 255 - r;
+    const gComplimentary = 255 - g;
+    const bComplimentary = 255 - b;
+
+    // Combine the RGB components back into a single color
+    const complimentaryColor = (rComplimentary << 16) | (gComplimentary << 8) | bComplimentary;
+
+    return complimentaryColor;
+}
 
 function createVoid(x, y) {
     createSprite(x, y, {x: 9, y: 9}, backgroundMap, 216);
