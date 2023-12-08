@@ -260,22 +260,6 @@ function goToNextLevel(currentLevelIndex) {
     }
 }
 
-// there are different player sprites for PLayerTypes, not yet used, might be removed
-
-const PlayerType = Object.freeze({
-    "HUMAN": 0,
-    "ANIMAL": 1,
-    "GHOST": 2,
-    "ROBOT": 3,
-    "BIRD": 4,
-    "OBELISK": 5,
-    "FUNGUS": 6,
-    "SKELETON" : 7,
-    "VEGETABLE": 8,
-    "PILE": 9
-    
-});
-
 class Entity {
     constructor(x, y, scheduler, frames, zIndex, map) {
         activeEntities.push(this);
@@ -338,22 +322,90 @@ class Entity {
     }
 }
 
-class Player {
+// there are different player sprites for PLayerTypes, not yet used, might be removed
+
+
+
+class Actor {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.isDead = false;
-        this.isSkeletonized = false;
-        this.isTargeting = false;
         this.type = type;
-        this.name = "You";
         this.x = x;
         this.y = y;
         this.prevX = null;
         this.prevY = null;
+        this.sprite = {}; 
+        this.scheduler = scheduler;
+        this.engine = engine;
+        this.messageList = messageList;
+        this.inspector = inspector;
+        this.inventory = [];
+        this.blood = 100;
+        this.isBurning = false;
+        this.burningTurns = 0;
+    }
+
+    takeDamage(amount) {
+        this.blood -= amount;
+        if (this.blood <= 0) {
+            this.die();
+        }
+    }
+
+    pickUpItem(item, x, y) {
+        // Remove the item from the object map and the game container
+        objectMap[y][x] = null;
+        gameContainer.removeChild(item.sprite);
+        playPickupSound();
+        // Move the player to the item's position
+        this.updatePosition(x, y); // Add this line to update the player's position
+    
+        // Add the item to the player's inventory
+        if (item.type != ItemType.ARROW && item.type != ItemType.FLOWER) {
+            this.inventory.push(item);
+        }
+        if (item.type === ItemType.BOW || item.type === ItemType.ARROW) {
+            this.arrows++;
+        }
+        if (item.type === ItemType.FLOWER) {
+            this.flowers++;
+        }
+
+        // Log a message about the item picked up
+        this.messageList.addMessage(`You picked up a ${item.name}.`);
+    }
+
+    checkForItems(x, y) {
+        let item = objectMap[y][x]?.item;
+        if (item) this.pickUpItem(item, x, y);
+    }
+}
+
+
+const PlayerType = Object.freeze({
+    "HUMAN": 0,
+    "ANIMAL": 1,
+    "GHOST": 2,
+    "ROBOT": 3,
+    "BIRD": 4,
+    "OBELISK": 5,
+    "FUNGUS": 6,
+    "SKELETON" : 7,
+    "VEGETABLE": 8,
+    "PILE": 9
+    
+});
+
+class Player extends Actor{
+    constructor(type, x, y, scheduler, engine, messageList, inspector) {
+        super(type, x, y, scheduler, engine, messageList, inspector);
+        this.name = "You";
+        this.isSkeletonized = false;
+        this.isTargeting = false;
         //players are made of two tiles, a head and feet, they also have some shadow tiles
         //that do complex stuff to show or hide on walls and floors
         this.footprintTile;
         this.headTile;
-        this.sprite = {}; 
         this.range = 10;
         //we want to warn the player if they are about to step in fire
         this.attemptingFireEntry = false;
@@ -362,11 +414,6 @@ class Player {
         this.footShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
         this.footShadowTile.zIndex = 1.5;
-        //scheduler decides when monsters and players take their turns
-        this.scheduler = scheduler;
-        this.engine = engine;
-        this.messageList = messageList;
-        this.inspector = inspector;
 
         window.addEventListener('keydown', (event) => {
             this.handleKeydown(event);
@@ -388,11 +435,7 @@ class Player {
                 this.displayTargetingSprite(x, y);
             }
         });
-        // stats
-        this.blood = 100; //health
-        this.isBurning = false;
-        this.burningTurns = 0;
-        this.inventory = [];
+        // player only items
         this.arrows = 0;
         this.flowers = 0;
         
@@ -693,11 +736,6 @@ class Player {
     
     
     
-
-    checkForItems(x, y) {
-        let item = objectMap[y][x]?.item;
-        if (item) this.pickUpItem(item, x, y);
-    }
 
     updatePosition(newTileX, newTileY) {
         //console.log('update player position');
@@ -1054,29 +1092,7 @@ class Player {
 
     }
 
-    pickUpItem(item, x, y) {
-        // Remove the item from the object map and the game container
-        objectMap[y][x] = null;
-        gameContainer.removeChild(item.sprite);
-        playPickupSound();
-        // Move the player to the item's position
-        this.updatePosition(x, y); // Add this line to update the player's position
-    
-        // Add the item to the player's inventory
-        if (item.type != ItemType.ARROW && item.type != ItemType.FLOWER) {
-            this.inventory.push(item);
-        }
-        if (item.type === ItemType.BOW || item.type === ItemType.ARROW) {
-            this.arrows++;
-        }
-        if (item.type === ItemType.FLOWER) {
-            this.flowers++;
-        }
-
-        // Log a message about the item picked up
-        this.messageList.addMessage(`You picked up a ${item.name}.`);
-    }
-    ropItemOnTile(item, x, y) {
+    dropItemOnTile(item, x, y) {
         // Remove the item from the player's inventory
         const index = this.inventory.indexOf(item);
         if (index > -1) {
@@ -1353,19 +1369,15 @@ const Attacks = {
     // Add other attacks here
 }
 
-class Monster {
+class Monster extends Actor{
     static allMonsters = [];
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
-        this.name = null;
-        console.log("ROAR");
-        this.isDead = false;
+        super(type, x, y, scheduler, engine, messageList, inspector);
+        this.name = "beast";
+        //console.log("ROAR");
         this.upright = true;
-        this.type = type;
-        this.x = x;
-        this.y = y;
         this.prevX = null;
         this.prevY = null;
-        this.sprite = {}; 
         this.fireproof;
         this.secondShadowTile = {x: 14, y: 9};
         this.firstShadowTile = {x: 8, y: 6};
@@ -1375,6 +1387,7 @@ class Monster {
         this.engine = engine;
         this.messageList = messageList;
         this.inspector = inspector;
+        this.inventory = [];
         this.blood = 100;
         this.isBurning = false;
         this.burningTurns = 0;
@@ -1476,6 +1489,8 @@ class Monster {
                         }
                 
                         this.updateSpritePosition();
+
+                        this.checkForItems(this.x, this.y);
                     }
                 };
                 this.act = function() {
@@ -1926,6 +1941,7 @@ class Kudzu extends Entity {
                     t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
                     floorMap[t.y][t.x].value === 157 && // Walkable tile
                     doorMap[t.y][t.x].value == null && // Not a door
+                    objectMap[t.y][t.x]?.item?.value == null &&// No objects
                     atmosphereMap[t.y][t.x]?.value != 300 && // Not already occupied by Fire, using optional chaining
                     !growthMap[t.y][t.x] // Not already occupied by Kudzu or Flower
                 );
@@ -3195,9 +3211,9 @@ function setup() {
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
-        player2 = new Player(PlayerType.ROBOT, randomTile5.x, randomTile5.y, scheduler, engine, messageList, inspector);
+        /* player2 = new Player(PlayerType.ROBOT, randomTile5.x, randomTile5.y, scheduler, engine, messageList, inspector);
         createPlayerSprite(player2);
-        scheduler.add(player2, true);
+        scheduler.add(player2, true); */
 
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
