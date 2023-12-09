@@ -556,7 +556,21 @@ class Player extends Actor{
         }
     }    
     //moving with arrow keys
-    
+    isNearUIBox(uiBox, threshold = 5) {
+        // Calculate the distance between the player and each edge of the UIBox
+        let distanceToLeftEdge = Math.abs(this.x - uiBox.x);
+        let distanceToRightEdge = Math.abs(this.x - (uiBox.x + uiBox.width));
+        let distanceToTopEdge = Math.abs(this.y - uiBox.y);
+        let distanceToBottomEdge = Math.abs(this.y - (uiBox.y + uiBox.height));
+
+        // Check if the player is within the threshold distance of any edge of the UIBox
+        if (distanceToLeftEdge <= threshold || distanceToRightEdge <= threshold || 
+            distanceToTopEdge <= threshold || distanceToBottomEdge <= threshold) {
+            return true;
+        }
+
+        return false;
+    }
     move(direction) {
         //console.log('Player is taking turn...');
         
@@ -602,6 +616,9 @@ class Player extends Actor{
             playFootstepSound();
             this.checkForItems(newTileX, newTileY);
             this.updateSprites();
+        }
+        if (this.isNearUIBox(inspector)) {
+            inspector.moveBox();
         }
     }
     
@@ -2949,13 +2966,15 @@ function evaluateMapAndCreateWalls() {
 
 // a class for screen text
 class UIBox {
-    constructor(textBuffer = [""], width = MAP_WIDTH, height = null, hidden = false) {
+    constructor(textBuffer = [""], width = MAP_WIDTH, height = null, hidden = false, x = 0, y = 0) {
         this.textBuffer = textBuffer;
         this.width = width;
         this.height = height || textBuffer.length;
         this.hidden = hidden;
         this.height = Math.min(this.height, MAP_HEIGHT);
         this.originalTiles = [];
+        this.x = x; // X position
+        this.y = y; // Y position
     }
     
     maskBox() {
@@ -2986,15 +3005,16 @@ class UIBox {
         if (this.width == null){this.width = MAP_WIDTH};
 
         this.maskBox();
-        createSprite(0, 0, BOX_TOP_LEFT,uiMap, 214);
+        createSprite(this.x, this.y, BOX_TOP_LEFT, uiMap, 214);
         for (let x = 1; x < this.width - 1; x++) {
-            createSprite(x, 0, BOX_HORIZONTAL,uiMap, 196);
+            createSprite(this.x + x, this.y, BOX_HORIZONTAL, uiMap, 196);
         }
-        createSprite(this.width - 1, 0, BOX_TOP_RIGHT,uiMap, 191);
+        createSprite(this.x + this.width - 1, this.y, BOX_TOP_RIGHT, uiMap, 191);
+
 
         for (let y = 1; y < this.height; y++) {
-            createSprite(0, y, BOX_VERTICAL, uiMap, 179);
-            createSprite(this.width - 1, y, BOX_VERTICAL, uiMap, 179);
+            createSprite(this.x, this.y + y, BOX_VERTICAL, uiMap, 179);
+            createSprite(this.x + this.width - 1, this.y + y, BOX_VERTICAL, uiMap, 179);
             /* for(let x = 1; x < this.width - 1; x++) {
                 createSprite(x, y, WHITE_TILE, uiMap, 0);
             } */
@@ -3015,6 +3035,12 @@ class UIBox {
                 createSprite(this.width - 1, y + 1, BOX_BOTTOM_RIGHT, uiMap, 217);
             }
         }
+    }
+    moveBox(newX, newY) {
+        console.log("I'm moving the box");
+        this.x = newX;
+        this.y = newY;
+        this.drawUIBox(); // Redraw the box at the new position
     }
 
     charToSpriteLocation(char) {
