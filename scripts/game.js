@@ -67,6 +67,7 @@ const BOX_HORIZONTAL_HALF = {x: 20, y: 10};
 // that started out as the number of the tile being displayed, but I also use it for game logic
 //like pathfinding. they can also hold a sprite for easily accessing the sprite objects that are being displayed
 // in the pixi containers. THey also allow me to have 'layers' without having a bunch more pixi containers.
+// I probably shouldn't have made all these but it made it easier for me to program
 let backgroundMap = createEmptyMap();
 //background is the black void and the shadows that make the rooms look like towers in the dark
 let floorMap = createEmptyMap();
@@ -260,6 +261,8 @@ function goToNextLevel(currentLevelIndex) {
     }
 }
 
+// in most roguelikes everything would inherit from entity, but here it's just plants, smoke, fire and gas etc. 
+
 class Entity {
     constructor(x, y, scheduler, frames, zIndex, map) {
         activeEntities.push(this);
@@ -322,9 +325,7 @@ class Entity {
     }
 }
 
-// there are different player sprites for PLayerTypes, not yet used, might be removed
-
-
+// Actor is the class that Player and Monster inherit from, it's new and probably not utilized enough yet
 
 class Actor {
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
@@ -351,14 +352,20 @@ class Actor {
             this.die();
         }
     }
-
+    updatePosition(newTileX, newTileY) {
+        //console.log('update player position');
+        this.prevX = this.x;
+        this.prevY = this.y;
+        this.x = newTileX;
+        this.y = newTileY;
+        
+    }
     pickUpItem(item, x, y) {
         // Remove the item from the object map and the game container
         objectMap[y][x] = null;
         gameContainer.removeChild(item.sprite);
         playPickupSound();
-        // Move the player to the item's position
-        this.updatePosition(x, y); // Add this line to update the player's position
+        this.updatePosition(x, y); 
     
         // Add the item to the player's inventory
         if (item.type != ItemType.ARROW && item.type != ItemType.FLOWER) {
@@ -381,6 +388,7 @@ class Actor {
     }
 }
 
+// there are different player sprites for PLayerTypes, not yet used but they do work
 
 const PlayerType = Object.freeze({
     "HUMAN": 0,
@@ -697,6 +705,7 @@ class Player extends Actor{
         return door && !door.isLocked && !door.isOpen;
     }
 
+    //fire burns etc-
     handleTileEffects(newTileX, newTileY, direction) {
         // Check if player has changed direction after fire warning
         if (this.attemptingFireEntry && this.fireEntryDirection !== direction) {
@@ -737,14 +746,7 @@ class Player extends Actor{
     
     
 
-    updatePosition(newTileX, newTileY) {
-        //console.log('update player position');
-        this.prevX = this.x;
-        this.prevY = this.y;
-        this.x = newTileX;
-        this.y = newTileY;
-        
-    }
+    
 
     updateSprites(newTileX, newTileY) {
         this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
@@ -1103,8 +1105,8 @@ class Player extends Actor{
         objectMap[y][x] = item;
     
         // Update the position of the item's sprite
-        item.sprite.x = x * TILE_SIZE;
-        item.sprite.y = y * TILE_SIZE;
+        item.sprite.x = x * TILE_WIDTH;
+        item.sprite.y = y * TILE_HEIGHT;
     }
     findAdjacentWalkableTile() {
         // Define the coordinates for the adjacent tiles
@@ -1390,6 +1392,8 @@ class Monster extends Actor{
         this.inventory = [];
         this.blood = 100;
         this.isBurning = false;
+        this.isSleeping = false;
+        this.sighted = false;
         this.burningTurns = 0;
         this.speed = 1;
         this.actFrequency = 1;
@@ -1418,6 +1422,7 @@ class Monster extends Actor{
                 this.actFrequency = 2; // Number of turns to wait between actions
                 this.turnsWaited = 0; // Number of turns waited since last action
                 this.getTargetsInRange = function() {
+                    console.log("Checking for targets in range...");
                     if (players.length > 0) {
                         for(let obj of players) { 
                             if(obj.isDead === false) {
@@ -1425,16 +1430,22 @@ class Monster extends Actor{
                                 let dy = this.y - obj.y;
                                 let distance = Math.sqrt(dx * dx + dy * dy);
                 
-                                if(distance <= this.range) { // within range of Basilisk's attack
+                                console.log(`Checking player at (${obj.x}, ${obj.y}), Distance: ${distance}`);
+                
+                                if(Math.floor(distance) <= this.range) { // Use floor or a similar approach
+                                    console.log("Target within range found:", obj);
                                     this.target = obj;
                                     break;
                                 }
                             }
                         }
                     } else {
+                        console.log("No players available.");
                         this.target = null;
                     }
-                } 
+                }
+                
+                
                 this.canSeeTarget = function(target) {
                     let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
                     let seen = true;
@@ -1462,6 +1473,8 @@ class Monster extends Actor{
                     }
                     return adjacentTiles;
                 };
+
+                
                 this.moveRandomly = function() {
                     let adjacentTiles = this.getAdjacentTiles();
                 
@@ -1494,35 +1507,46 @@ class Monster extends Actor{
                     }
                 };
                 this.act = function() {
-                    //console.log("Basilisk's turn");
+                    console.log("Basilisk's turn");
+                
                     if (this.bleeding) {
                         if (Math.random() < 0.7) {
                             dripBlood(this.x, this.y, this.bloodColor);
                         }
                     }
-                    if(!this.target) {
-                        this.getTargetsInRange();
-                    }
+                
+                    this.getTargetsInRange();
+                    //console.log("Target acquired:", this.target);
+                
                     if(this.target) {
                         if (this.canSeeTarget(this.target)) {
-                            //console.log("The Basilisk sees something!");
+                            //console.log("The Basilisk sees the target.");
+                            this.sighted = true;
                             for (let attackKey of this.attacks) {
                                 Attacks[attackKey](this, this.target);
                             }
+                        } else {
+                            //console.log("The Basilisk cannot see the target.");
+                            this.sighted = false;
                         }
                         this.target = null;
-                    }  else if(this.turnsWaited >= this.actFrequency) {
+                    }
+                
+                    if (this.sighted) {
+                        //console.log("Following the target.");
+                        this.followTarget();
+                    } else if(this.turnsWaited >= this.actFrequency) {
+                        //console.log("Moving randomly.");
                         for(let i = 0; i < this.speed; i++) {
                             this.moveRandomly();
-                            //console.log("I'd move if I felt like it.")
-                            
                         }
                         this.turnsWaited = 0;
-                    }
-                    else {
+                    } else {
+                        //console.log("Waiting...");
                         this.turnsWaited++;
                     }
-                }
+                };
+                
                 break;
             case MonsterType.CHIMERA:
                     this.name = "Chimera";
@@ -1554,6 +1578,9 @@ class Monster extends Actor{
                 this.headPosition = {x: 1, y: 0};
                 break;
         }
+
+        
+
         this.updateSpritePosition = function() {
             if (this.sprite.firstTile && this.sprite.secondTile) {
                 this.sprite.firstTile.x = this.x * TILE_WIDTH * SCALE_FACTOR;
@@ -1586,7 +1613,43 @@ class Monster extends Actor{
             this.die();
         }
     }
-
+    followTarget = function() {
+        if (!this.target) {
+            return;
+        }
+    
+        // Calculate direction towards the target
+        let dx = this.target.x - this.x;
+        let dy = this.target.y - this.y;
+        let distance = Math.sqrt(dx * dx + dy * dy);
+    
+        // Check if the target is adjacent (no need for normalization in this case)
+        if (distance <= 1) {
+            // Adjust dx and dy for adjacent movement
+            dx = (dx !== 0) ? Math.sign(dx) : 0;
+            dy = (dy !== 0) ? Math.sign(dy) : 0;
+        } else {
+            // Normalize direction for non-adjacent movement
+            dx = Math.round(dx / distance);
+            dy = Math.round(dy / distance);
+        }
+    
+        // Check if the next position is valid (e.g., no walls or obstacles)
+        let nextX = this.x + dx;
+        let nextY = this.y + dy;
+    
+        if (this.isValidMove(nextX, nextY)) {
+            // Move towards the target
+            this.x = nextX;
+            this.y = nextY;
+            this.updateSpritePosition();
+        }
+    };
+    
+    isValidMove = function(x, y) {
+        return x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT && !this.isBlocked(x, y);
+    };
+    
     die() {
         this.isDead = true;
         this.sprite.firstTile.visible = false;
