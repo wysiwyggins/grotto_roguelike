@@ -30,11 +30,9 @@ let player = null;
 
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
-
+let turnTimeout; 
 // Set up some constants
 const rect = app.view.getBoundingClientRect();
-const TILE_WIDTH = 40;
-const TILE_HEIGHT = 30;
 const MAP_WIDTH = 60;
 const MAP_HEIGHT = 50;
 const SPRITESHEET_PATH = 'assets/spritesheets/grotto40x30-cp437.png';
@@ -109,6 +107,46 @@ createjs.Ticker.addEventListener("tick", createjs.Tween);
 //var audio = new Audio('assets/sound/grottoAudiosprite.mp3');
 //audio.play();
 
+function passTurn() {
+    console.log('Turn passed due to inactivity.');
+
+    players.forEach(player => {
+        if (!player.isDead) {
+            player.inactiveTurns++;
+            console.log(`Player inactive turns: ${player.inactiveTurns}`);
+            if (player.inactiveTurns >= 3) {
+                player.zeroPlayerMode = true; // Set zero-player mode
+                console.log("Entering zero-player mode");
+                moveToNearestItem(player);
+            }
+        }
+    });
+
+    // Process the next entity in the scheduler
+    if (engine) {
+        if (!engine.lock) {
+            console.log("Engine is unlocked, processing next turn.");
+            engine.start();  // This method resumes the engine if it was stopped.
+        } else {
+            console.log("Engine is locked, likely waiting for a current action to complete.");
+            if ( player.zeroPlayerMode){
+
+                engine.unlock();
+                console.log("unlocked the engine");
+            }
+        }
+    } else {
+        console.log("No engine found, make sure it's initialized and referenced correctly.");
+    }
+
+    // Reset the turn timer to wait for another period of inactivity
+    resetTurnTimer();
+}
+
+function resetTurnTimer() {
+    clearTimeout(turnTimeout);  // Clear the existing timer
+    turnTimeout = setTimeout(passTurn, 10000); //10 sec timer
+}
 //initialize each of the map arrays
 function createEmptyMap() {
     let map = new Array(MAP_HEIGHT);
@@ -135,12 +173,12 @@ PIXI.Loader.shared
 
 PIXI.Loader.shared.onComplete.add(() => {
     for (let i = 0; i < 7; i++) {
-        let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+        let rect = new PIXI.Rectangle(i * globalVars.TILE_WIDTH, 0, globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT);
         let texture = new PIXI.Texture(PIXI.Loader.shared.resources.fire.texture.baseTexture, rect);
         fireFrames.push(texture);
     }
     for (let i = 0; i < 7; i++) {
-        let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+        let rect = new PIXI.Rectangle(i * globalVars.TILE_WIDTH, 0, globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT);
         let texture = new PIXI.Texture(PIXI.Loader.shared.resources.smoke.texture.baseTexture, rect);
         smokeFrames.push(texture);
     }
@@ -277,7 +315,7 @@ class Entity {
             this.sprite.animationSpeed = 0.1;
             this.sprite.loop = true;
             this.sprite.play();
-            this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR); 
+            this.sprite.position.set(x * globalVars.TILE_WIDTH * SCALE_FACTOR, y * globalVars.TILE_HEIGHT * SCALE_FACTOR); 
             this.sprite.scale.set(SCALE_FACTOR);
             this.sprite.zIndex = zIndex;
             gameContainer.addChild(this.sprite);
@@ -342,6 +380,7 @@ class Actor {
         this.inspector = inspector;
         this.inventory = [];
         this.blood = 100;
+        this.isFlammable = true;
         this.isBurning = false;
         this.burningTurns = 0;
     }
@@ -351,6 +390,17 @@ class Actor {
         if (this.blood <= 0) {
             this.die();
         }
+    }
+    die(){ 
+        this.isDead = true;
+        this.sprite.visible = false;
+        this.scheduler.remove(this);
+        this.messageList.addMessage(`${this.name} returns to dust.`);
+    }
+    
+    checkForItems(x, y) {
+        let item = objectMap[y][x]?.item;
+        if (item) this.pickUpItem(item, x, y);
     }
     updatePosition(newTileX, newTileY) {
         //console.log('update player position');
@@ -379,12 +429,20 @@ class Actor {
         }
 
         // Log a message about the item picked up
-        this.messageList.addMessage(`You picked up a ${item.name}.`);
-    }
+        let message = '';
 
-    checkForItems(x, y) {
-        let item = objectMap[y][x]?.item;
-        if (item) this.pickUpItem(item, x, y);
+        // Check the type of actor and set the message accordingly
+        if (this instanceof Player) {
+            message = `You picked up a ${item.name}.`;
+        } else if (this instanceof Monster) {
+            message = `The ${this.name} picked up a ${item.name}.`;
+        }
+
+        // Add a check to ensure message is not undefined or empty
+        if (message) {
+            this.messageList.addMessage(message);
+        }
+        
     }
 }
 
@@ -404,12 +462,24 @@ const PlayerType = Object.freeze({
     
 });
 
+function resetPlayerStates() {
+    players.forEach(player => {
+        player.inactiveTurns = 0;
+        player.zeroPlayerMode = false;
+        player.failedMoveAttempts = 0;
+    });
+}
+
 class Player extends Actor{
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         super(type, x, y, scheduler, engine, messageList, inspector);
+        this.inactiveTurns = 0;
+        this.zeroPlayerMode = false; // Flag for zero-player mode
+        this.failedMoveAttempts = 0; // Counter for failed move attempts
         this.name = "You";
         this.isSkeletonized = false;
         this.isTargeting = false;
+        
         //players are made of two tiles, a head and feet, they also have some shadow tiles
         //that do complex stuff to show or hide on walls and floors
         this.footprintTile;
@@ -424,9 +494,12 @@ class Player extends Actor{
         this.footShadowTile.zIndex = 1.5;
 
         window.addEventListener('keydown', (event) => {
+            resetPlayerStates();
             this.handleKeydown(event);
+            
         });
         window.addEventListener('mousedown', (event) => {
+            resetPlayerStates();
             this.handleClick(event);
         });
         window.addEventListener('mousemove', (event) => {
@@ -435,8 +508,8 @@ class Player extends Actor{
                 let relativeX = event.clientX - rect.left;
                 let relativeY = event.clientY - rect.top;
                 
-                let x = Math.floor(relativeX / (TILE_WIDTH * SCALE_FACTOR));
-                let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
+                let x = Math.floor(relativeX / (globalVars.TILE_WIDTH * SCALE_FACTOR));
+                let y = Math.floor(relativeY / (globalVars.TILE_HEIGHT * SCALE_FACTOR));
                 
                 // Update the targeting sprite
                 this.removeTargetingSprite();
@@ -545,8 +618,8 @@ class Player extends Actor{
         let relativeX = event.clientX - rect.left;
         let relativeY = event.clientY - rect.top;
 
-        let x = Math.floor(relativeX / (TILE_WIDTH * SCALE_FACTOR));
-        let y = Math.floor(relativeY / (TILE_HEIGHT * SCALE_FACTOR));
+        let x = Math.floor(relativeX / (globalVars.TILE_WIDTH * SCALE_FACTOR));
+        let y = Math.floor(relativeY / (globalVars.TILE_HEIGHT * SCALE_FACTOR));
 
         // If player is in targeting mode
         if (this.isTargeting) {
@@ -742,25 +815,40 @@ class Player extends Actor{
             this.fireEntryDirection = null;
         }
     }
-    
-    
-    
 
-    
+    die(){
+        this.messageList.addMessage("You are dead!");
+        this.type = PlayerType.SKELETON;
+        this.isDead = true;
+        this.isSkeletonized = true;
+        
+        this.skeletonize();
+        for (let i = this.inventory.length - 1; i >= 0; i--) {
+            const item = this.inventory[i];
+            if (item.type === ItemType.KEY) {
+                // Find an adjacent, walkable tile
+                const adjacentTile = this.findAdjacentWalkableTile();
+                if (adjacentTile) {
+                    // Drop the key on the tile
+                    this.dropItemOnTile(item, adjacentTile.x, adjacentTile.y);
+                }
+            }
+        }
+    }
 
     updateSprites(newTileX, newTileY) {
-        this.sprite.footprint.x = this.x * TILE_WIDTH * SCALE_FACTOR;
-        this.sprite.footprint.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+        this.sprite.footprint.x = this.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+        this.sprite.footprint.y = this.y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
         this.sprite.overlay.x = this.sprite.footprint.x;
-        this.sprite.overlay.y = this.sprite.footprint.y - TILE_HEIGHT * SCALE_FACTOR;
+        this.sprite.overlay.y = this.sprite.footprint.y - globalVars.TILE_HEIGHT * SCALE_FACTOR;
     
         let headTileY = this.y - 1;
         let isFrontOfWall = floorMap[headTileY]?.[this.x + 1]?.value === 177 && wallMap[headTileY]?.[this.x + 1]?.value !== 131; // check the tile to the right of the head
         this.sprite.shadow.visible = isFrontOfWall;
     
         if (isFrontOfWall) {
-            this.sprite.shadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position shadow to the right of the head
-            this.sprite.shadow.y = headTileY * TILE_HEIGHT * SCALE_FACTOR;
+            this.sprite.shadow.x = (this.x + 1) * globalVars.TILE_WIDTH * SCALE_FACTOR; // position shadow to the right of the head
+            this.sprite.shadow.y = headTileY * globalVars.TILE_HEIGHT * SCALE_FACTOR;
         }
     
         // Handle visibility and positioning of the foot shadow
@@ -768,8 +856,8 @@ class Player extends Actor{
         this.sprite.footShadow.visible = isBesideFloor;
     
         if (isBesideFloor) {
-            this.sprite.footShadow.x = (this.x + 1) * TILE_WIDTH * SCALE_FACTOR; // position foot shadow to the right of the footprint
-            this.sprite.footShadow.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+            this.sprite.footShadow.x = (this.x + 1) * globalVars.TILE_WIDTH * SCALE_FACTOR; // position foot shadow to the right of the footprint
+            this.sprite.footShadow.y = this.y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
         }
     
         // Reset opacity of sprites that were previously occluded
@@ -823,34 +911,27 @@ class Player extends Actor{
     }
     //moveTo implicitly takes turns when the player clicks on a distant spot that can be walked to
     async moveTo(targetX, targetY, stopBefore = false) {
+        let stuckCounter = 0;
         if (targetX === this.x && targetY === this.y) return;
 
         let path = [];
-        let stuckCounter = 0; // add a counter for stuck moves
-
         let passableCallback = (x, y) => {
             let floorTileValue = floorMap[y][x]?.value;
             let objectTileValue = objectMap[y][x]?.value;
             let atmosphereTileValue = atmosphereMap[y][x]?.value;
-            // Tile is considered "unpassable" if it's on fire.
-            if (atmosphereTileValue === 300) {
-                return false;
-            }
             return floorTileValue === 157 && (!objectTileValue);
         }
-
         let astar = new ROT.Path.AStar(targetX, targetY, passableCallback);
-
-        let pathCallback = (x, y) => {
-            path.push({ x, y });
-        }
-
+        let pathCallback = (x, y) => path.push({ x, y });
         astar.compute(this.x, this.y, pathCallback);
 
         if (path.length === 0) {
-            this.messageList.addMessage("You're not sure how to get there.");
+            if (!this.zeroPlayerMode) {
+                this.messageList.addMessage("You're not sure how to get there.");
+            } 
             return;
         }
+        this.failedMoveAttempts = 0;
     
         for (let point of path) {
             let { x, y } = point;
@@ -920,17 +1001,24 @@ class Player extends Actor{
     }
 
     getAdjacentPosition(targetX, targetY) {
-        let diffX = this.x - targetX;
-        let diffY = this.y - targetY;
+        let diffX = targetX - this.x;
+        let diffY = targetY - this.y;
     
-        if (diffX !== 0) diffX = diffX > 0 ? 1 : -1;
-        if (diffY !== 0) diffY = diffY > 0 ? 1 : -1;
+        // Move in the opposite direction
+        let newX = this.x - Math.sign(diffX);
+        let newY = this.y - Math.sign(diffY);
     
-        return { x: targetX + diffX, y: targetY + diffY };
+        // Check for map boundaries
+        newX = Math.max(0, Math.min(MAP_WIDTH - 1, newX));
+        newY = Math.max(0, Math.min(MAP_HEIGHT - 1, newY));
+    
+        return { x: newX, y: newY };
     }
+    
 
     handleKeydown(event) {
         if (this.isDead) return;
+        resetTurnTimer();
         // If the player is in targeting mode, any keypress should cancel the targeting
         if (this.isTargeting) {
             this.isTargeting = false;
@@ -942,30 +1030,46 @@ class Player extends Actor{
         switch (event.key) {
             case 'ArrowUp':
             case 'Numpad8':
+            case '8':
+            case 'w':
                 newDirection = 'up';
                 break;
             case 'ArrowDown':
             case 'Numpad2':
+            case '2':
+            case 's':
                 newDirection = 'down';
                 break;
             case 'ArrowLeft':
             case 'Numpad4':
+            case '4':
+            case 'a':
                 newDirection = 'left';
                 break;
             case 'ArrowRight':
             case 'Numpad6':
+            case '6':
+            case 'd':
                 newDirection = 'right';
                 break;
             case 'Numpad7':
+            case '7':
+            case 'q':
                 newDirection = 'up-left';
                 break;
             case 'Numpad9':
+            case '9':
+            case 'e':
                 newDirection = 'up-right';
                 break;
             case 'Numpad1':
+            case '1':
+            case 'z':
                 newDirection = 'down-left';
                 break;
             case 'Numpad3':
+            case '3':
+            case 'c':
                 newDirection = 'down-right';
                 break;
             default:
@@ -980,9 +1084,9 @@ class Player extends Actor{
         if (this.engine._lock) {
             this.engine.unlock();  // After moving, unlock the engine for the next turn
         }
-        if (event.key === 'a' || event.code === 'KeyA') {
+        if (event.key === 'b' || event.code === 'KeyB') {
             this.handleArrowAim();
-            console.log("arrow attack");
+            console.log("bow attack");
         }
         if (event.key === 'c' || event.code === 'KeyC') {
             this.handleCloseDoor();
@@ -995,6 +1099,8 @@ class Player extends Actor{
         if (hasBow) {
             this.isTargeting = true;
             this.messageList.addMessage("Aim bow at?");
+        } else {
+            this.messageList.addMessage("You have no bow to shoot with.");
         }
     }
 
@@ -1091,7 +1197,7 @@ class Player extends Actor{
         }
     }
     handleCloseDoor() {
-
+        //oops
     }
 
     dropItemOnTile(item, x, y) {
@@ -1105,8 +1211,8 @@ class Player extends Actor{
         objectMap[y][x] = item;
     
         // Update the position of the item's sprite
-        item.sprite.x = x * TILE_WIDTH;
-        item.sprite.y = y * TILE_HEIGHT;
+        item.sprite.x = x * globalVars.TILE_WIDTH;
+        item.sprite.y = y * globalVars.TILE_HEIGHT;
     }
     findAdjacentWalkableTile() {
         // Define the coordinates for the adjacent tiles
@@ -1135,7 +1241,9 @@ class Player extends Actor{
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
-            sound.play('ouch');
+            if (!this.isDead){
+                sound.play('ouch');
+            }
             this.burningTurns++;
             this.messageList.addMessage("You are on fire!");
             
@@ -1157,23 +1265,7 @@ class Player extends Actor{
             this.blood --;
         }
         if (this.blood < 1 && this.blood > -100 && this.isSkeletonized == false) {
-            this.messageList.addMessage("You are dead!");
-            this.type = PlayerType.SKELETON;
-            this.isDead = true;
-            this.isSkeletonized = true;
-            
-            this.skeletonize();
-            for (let i = this.inventory.length - 1; i >= 0; i--) {
-                const item = this.inventory[i];
-                if (item.type === ItemType.KEY) {
-                    // Find an adjacent, walkable tile
-                    const adjacentTile = this.findAdjacentWalkableTile();
-                    if (adjacentTile) {
-                        // Drop the key on the tile
-                        this.dropItemOnTile(item, adjacentTile.x, adjacentTile.y);
-                    }
-                }
-            }
+            this.die();
         }
         // Check if player is REALLY dead
         if (this.blood <=-100 && this.isSkeletonized == true) {
@@ -1199,13 +1291,13 @@ class Player extends Actor{
                 break;
         }
         let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            footprintPosition.x * TILE_WIDTH, 
-            footprintPosition.y * TILE_HEIGHT, 
-            TILE_WIDTH, TILE_HEIGHT));
+            footprintPosition.x * globalVars.TILE_WIDTH, 
+            footprintPosition.y * globalVars.TILE_HEIGHT, 
+            globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
         let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            headPosition.x * TILE_WIDTH, 
-            headPosition.y * TILE_HEIGHT, 
-            TILE_WIDTH, TILE_HEIGHT));
+            headPosition.x * globalVars.TILE_WIDTH, 
+            headPosition.y * globalVars.TILE_HEIGHT, 
+            globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
@@ -1227,13 +1319,13 @@ class Player extends Actor{
                 break;
         }
         let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            footprintPosition.x * TILE_WIDTH, 
-            footprintPosition.y * TILE_HEIGHT, 
-            TILE_WIDTH, TILE_HEIGHT));
+            footprintPosition.x * globalVars.TILE_WIDTH, 
+            footprintPosition.y * globalVars.TILE_HEIGHT, 
+            globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
         let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            headPosition.x * TILE_WIDTH, 
-            headPosition.y * TILE_HEIGHT, 
-            TILE_WIDTH, TILE_HEIGHT));
+            headPosition.x * globalVars.TILE_WIDTH, 
+            headPosition.y * globalVars.TILE_HEIGHT, 
+            globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
@@ -1267,25 +1359,25 @@ function createPlayerSprite(player) {
     players.push(player);
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let footprintTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        player.footprintPosition.x * TILE_WIDTH, 
-        player.footprintPosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        player.footprintPosition.x * globalVars.TILE_WIDTH, 
+        player.footprintPosition.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteFootprint = new PIXI.Sprite(footprintTexture);
     spriteFootprint.scale.set(SCALE_FACTOR);
     spriteFootprint.zIndex = 2.3;
 
     let overlayTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        player.headPosition.x * TILE_WIDTH, 
-        player.headPosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        player.headPosition.x * globalVars.TILE_WIDTH, 
+        player.headPosition.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteOverlay = new PIXI.Sprite(overlayTexture);
     spriteOverlay.scale.set(SCALE_FACTOR);
     spriteOverlay.zIndex = 2.3;
 
-    spriteFootprint.x = player.x * TILE_WIDTH * SCALE_FACTOR;
-    spriteFootprint.y = player.y * TILE_HEIGHT * SCALE_FACTOR;
+    spriteFootprint.x = player.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+    spriteFootprint.y = player.y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
     spriteOverlay.x = spriteFootprint.x;
-    spriteOverlay.y = spriteFootprint.y - TILE_HEIGHT * SCALE_FACTOR;
+    spriteOverlay.y = spriteFootprint.y - globalVars.TILE_HEIGHT * SCALE_FACTOR;
 
     gameContainer.addChild(spriteFootprint);
     gameContainer.addChild(spriteOverlay);
@@ -1316,18 +1408,18 @@ function createPlayerSprite(player) {
     });
     player.sprite = { footprint: spriteFootprint, overlay: spriteOverlay };
     let shadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        player.headShadowTile.x * TILE_WIDTH, 
-        player.headShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        player.headShadowTile.x * globalVars.TILE_WIDTH, 
+        player.headShadowTile.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteShadow = new PIXI.Sprite(shadowTexture);
     spriteShadow.scale.set(SCALE_FACTOR);
     spriteShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
     spriteShadow.visible = false;
     
     let footShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        player.footShadowTile.x * TILE_WIDTH, 
-        player.footShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        player.footShadowTile.x * globalVars.TILE_WIDTH, 
+        player.footShadowTile.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteFootShadow = new PIXI.Sprite(footShadowTexture);
     spriteFootShadow.scale.set(SCALE_FACTOR);
     spriteFootShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the shadow
@@ -1343,9 +1435,62 @@ function createPlayerSprite(player) {
 
 }
 
+
+async function moveToNearestItem(player) {
+    if (engine._lock) {
+        engine.unlock();
+    }
+    let nearestItem = findNearestItem(player.x, player.y);
+    let nearestMonster = findNearestMonster(player);
+
+    // Prioritize moving away from monsters if one is adjacent
+    if (nearestMonster && player.isAdjacentTo(nearestMonster.x, nearestMonster.y)) {
+        let escapeTile = player.getAdjacentPosition(nearestMonster.x, nearestMonster.y);
+        console.log(`Zero-player mode: Escaping from monster at ${nearestMonster.x}, ${nearestMonster.y}`);
+        await player.moveTo(escapeTile.x, escapeTile.y);
+    } else if (nearestItem) {
+        console.log(`Zero-player mode: Moving towards item at ${nearestItem.x}, ${nearestItem.y}`);
+        await player.moveTo(nearestItem.x, nearestItem.y);
+    } else {
+        console.log("No items or immediate threats detected.");
+        player.failedMoveAttempts++;
+        if (player.failedMoveAttempts >= 3) {
+            console.log("No movement possible, redirecting...");
+        }
+    }
+    player.inactiveTurns = 0; // Reset the counter after attempting to move
+}
+
+function findNearestMonster(player) {
+    let nearest = null;
+    let minDist = Infinity;
+    for (let monster of Monster.allMonsters) {
+        let dist = Math.sqrt(Math.pow(monster.x - player.x, 2) + Math.pow(monster.y - player.y, 2));
+        if (dist < minDist) {
+            nearest = monster;
+            minDist = dist;
+        }
+    }
+    return nearest;
+}
+
+function findNearestItem(px, py) {
+    let nearest = null;
+    let minDist = Infinity;
+    activeItems.forEach(item => {
+        let dist = Math.abs(item.x - px) + Math.abs(item.y - py);
+        if (dist < minDist) {
+            nearest = item;
+            minDist = dist;
+        }
+    });
+    return nearest;
+}
+
 const MonsterType = Object.freeze({
     "BASILISK": 0,
     "CHIMERA": 1,
+    "SKELETON": 2,
 });
 
 
@@ -1368,6 +1513,18 @@ const Attacks = {
         sound.play('fireball');
         messageList.addMessage("The {0} breathes flames!", [monster.name]);
     },
+    CLAW: function(monster, target) {
+        if (monster.isAdjacent(target) && target.isDead == false) {
+            messageList.addMessage(`The ${monster.name} claws at you!`);
+            if (target.isDead == false){
+                sound.play('ouch');
+            } else {
+                playBumpSound();
+            }
+            
+            target.takeDamage(5);
+        }
+    }
     // Add other attacks here
 }
 
@@ -1380,7 +1537,8 @@ class Monster extends Actor{
         this.upright = true;
         this.prevX = null;
         this.prevY = null;
-        this.fireproof;
+        this.firstTilePosition = { x: 0, y: 0 };  // Default values
+        this.secondTilePosition = { x: 0, y: 0 };
         this.secondShadowTile = {x: 14, y: 9};
         this.firstShadowTile = {x: 8, y: 6};
         this.sprite.shadow = null;
@@ -1407,6 +1565,92 @@ class Monster extends Actor{
             firstTile: {x: false, y: false},
             secondTile: {x: false, y: false}
         };
+        this.getTargetsInRange = function() {
+            //console.log("Checking for targets in range...");
+            if (players.length > 0) {
+                for(let obj of players) { 
+                    if(obj.isDead === false) {
+                        let dx = this.x - obj.x;
+                        let dy = this.y - obj.y;
+                        let distance = Math.sqrt(dx * dx + dy * dy);
+        
+                        //console.log(`Checking player at (${obj.x}, ${obj.y}), Distance: ${distance}`);
+        
+                        if(Math.floor(distance) <= this.range) { // Use floor or a similar approach
+                            //console.log("Target within range found:", obj);
+                            this.target = obj;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                console.log("No players available.");
+                this.target = null;
+            }
+        }
+        this.canSeeTarget = function(target) {
+            let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
+            let seen = true;
+            for(let point of lineToTarget) {
+                let x = point.x;
+                let y = point.y;
+                // If there's a wall or any other blocking entity, the monster can't see the target
+                if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
+                    seen = false;
+                }
+            }
+            return seen;
+        }
+        this.getAdjacentTiles = function() {
+            let adjacentTiles = [];
+            for(let dx = -1; dx <= 1; dx++) {
+                for(let dy = -1; dy <= 1; dy++) {
+                    if(dx === 0 && dy === 0) continue;
+                    let newX = this.x + dx;
+                    let newY = this.y + dy;
+                    if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
+                        adjacentTiles.push({x: newX, y: newY});
+                    }
+                }
+            }
+            return adjacentTiles;
+        };
+        this.moveRandomly = function() {
+            let attempts = 3;  // Number of attempts to find an unblocked tile
+            let moved = false;
+        
+            while (attempts-- > 0 && !moved) {
+                let adjacentTiles = this.getAdjacentTiles();
+        
+                // Filter out tiles that have a locked door or are blocked.
+                adjacentTiles = adjacentTiles.filter(tile => {
+                    let door = Door.totalDoors().find(door => door.x === tile.x && door.y === tile.y);
+                    return !door || !this.isLockedDoor(door); // Allow open doors or tiles without doors
+                }).filter(tile => !this.isBlocked(tile.x, tile.y)); // Ensure the tile is not blocked
+        
+                if (adjacentTiles.length > 0) {
+                    let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
+                    this.x = randomTile.x;
+                    this.y = randomTile.y;
+        
+                    // Open any unlocked door on the tile.
+                    let doorOnTile = Door.totalDoors().find(door => door.x === this.x && door.y === this.y);
+                    if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
+                        doorOnTile.open();
+                        this.messageList.addMessage("You hear a crashing noise.");
+                    }
+        
+                    this.updateSpritePosition();
+                    this.checkForItems(this.x, this.y);
+                    moved = true; // Mark as moved
+                    this.handleTileEffects(this.x, this.y);
+                }
+            }
+        
+            if (!moved) {
+                console.log("Skeleton couldn't find an unblocked path to move randomly.");
+            }
+        };
         
         switch(type) {
             case MonsterType.BASILISK:
@@ -1417,95 +1661,11 @@ class Monster extends Actor{
                 this.attacks = ["FIREBREATH"];
                 this.target = null;
                 this.bloodColor = '0xFF0000';
+                this.isFlammable = false;
                 this.range = 5;
                 this.speed = 1; // Number of tiles to move in a turn
                 this.actFrequency = 2; // Number of turns to wait between actions
                 this.turnsWaited = 0; // Number of turns waited since last action
-                this.getTargetsInRange = function() {
-                    console.log("Checking for targets in range...");
-                    if (players.length > 0) {
-                        for(let obj of players) { 
-                            if(obj.isDead === false) {
-                                let dx = this.x - obj.x;
-                                let dy = this.y - obj.y;
-                                let distance = Math.sqrt(dx * dx + dy * dy);
-                
-                                console.log(`Checking player at (${obj.x}, ${obj.y}), Distance: ${distance}`);
-                
-                                if(Math.floor(distance) <= this.range) { // Use floor or a similar approach
-                                    console.log("Target within range found:", obj);
-                                    this.target = obj;
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        console.log("No players available.");
-                        this.target = null;
-                    }
-                }
-                
-                
-                this.canSeeTarget = function(target) {
-                    let lineToTarget = line({x: this.x, y: this.y}, {x: target.x, y: target.y});
-                    let seen = true;
-                    for(let point of lineToTarget) {
-                        let x = point.x;
-                        let y = point.y;
-                        // If there's a wall or any other blocking entity, the monster can't see the target
-                        if (floorMap[y][x].value !== 157 || (doorMap[y] && doorMap[y][x].value != null)) {
-                            seen = false;
-                        }
-                    }
-                    return seen;
-                }
-                this.getAdjacentTiles = function() {
-                    let adjacentTiles = [];
-                    for(let dx = -1; dx <= 1; dx++) {
-                        for(let dy = -1; dy <= 1; dy++) {
-                            if(dx === 0 && dy === 0) continue;
-                            let newX = this.x + dx;
-                            let newY = this.y + dy;
-                            if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
-                                adjacentTiles.push({x: newX, y: newY});
-                            }
-                        }
-                    }
-                    return adjacentTiles;
-                };
-
-                
-                this.moveRandomly = function() {
-                    let adjacentTiles = this.getAdjacentTiles();
-                
-                    // Filter out tiles that have a locked door.
-                    adjacentTiles = adjacentTiles.filter(tile => {
-                        let doorOnTile = Door.allDoors.find(door => door.x === tile.x && door.y === tile.y);
-                        if (doorOnTile) {
-                            if (doorOnTile.isLocked) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    });
-                
-                    if(adjacentTiles.length > 0) {
-                        let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
-                        this.x = randomTile.x;
-                        this.y = randomTile.y;
-                
-                        // Open any unlocked door on the tile.
-                        let doorOnTile = Door.allDoors.find(door => door.x === this.x && door.y === this.y);
-                        if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
-                            doorOnTile.open();
-                            messageList.addMessage("You hear a crashing noise.");
-                        }
-                
-                        this.updateSpritePosition();
-
-                        this.checkForItems(this.x, this.y);
-                    }
-                };
                 this.act = function() {
                     console.log("Basilisk's turn");
                 
@@ -1571,11 +1731,39 @@ class Monster extends Actor{
                         }
                     };
                     break;
+            case MonsterType.SKELETON:
+                this.name = "Skeleton";
+                this.upright = true;
+                this.attacks = ["CLAW"];
+                this.isFlammable = true;
+                this.firstTilePosition = {x: 8, y: 7};
+                this.secondTilePosition = {x: 9, y: 7};
+                this.act = function() {
+                    console.log("Skeleton's turn");
+        
+                    // Check for player visibility and proximity
+                    let target = this.findClosestPlayer();
+                    if (target && this.canSeeTarget(target)) {
+                        this.sighted = true;
+                        this.target = target;
+                    }
+        
+                    if (this.sighted && this.target) {
+                        if (this.isAdjacent(this.target)) {
+                            Attacks.CLAW(this, this.target);
+                        } else {
+                            this.followTarget();
+                        }
+                    } else {
+                        this.moveRandomly();
+                    }
+                };
+                break;
             default:
                 this.name = monster;
                 this.upright = true;
-                this.footprintPosition = {x: 10, y: 5};
-                this.headPosition = {x: 1, y: 0};
+                this.firstTilePosition = {x: 8, y: 7};
+                this.secondTilePosition = {x: 9, y: 7};
                 break;
         }
 
@@ -1583,14 +1771,14 @@ class Monster extends Actor{
 
         this.updateSpritePosition = function() {
             if (this.sprite.firstTile && this.sprite.secondTile) {
-                this.sprite.firstTile.x = this.x * TILE_WIDTH * SCALE_FACTOR;
-                this.sprite.firstTile.y = this.y * TILE_HEIGHT * SCALE_FACTOR;
+                this.sprite.firstTile.x = this.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+                this.sprite.firstTile.y = this.y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
         
                 if (this.upright) {
                     this.sprite.secondTile.x = this.sprite.firstTile.x;
-                    this.sprite.secondTile.y = this.sprite.firstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+                    this.sprite.secondTile.y = this.sprite.firstTile.y - globalVars.TILE_HEIGHT * SCALE_FACTOR;
                 } else {
-                    this.sprite.secondTile.x = this.sprite.firstTile.x + TILE_WIDTH * SCALE_FACTOR;
+                    this.sprite.secondTile.x = this.sprite.firstTile.x + globalVars.TILE_WIDTH * SCALE_FACTOR;
                     this.sprite.secondTile.y = this.sprite.firstTile.y;
                 }
         
@@ -1606,6 +1794,27 @@ class Monster extends Actor{
 
         Monster.allMonsters.push(this);
         
+    }
+    isAdjacent(target) {
+        let dx = Math.abs(this.x - target.x);
+        let dy = Math.abs(this.y - target.y);
+        return (dx <= 1 && dy <= 1 && dx + dy > 0);
+    }
+    isBlocked(x, y) {
+        if (this.isOutOfBounds(x, y)) {
+            return true; // Boundary check
+        }
+        if (!this.isWalkableTile(x, y)) {
+            return true; // Walkability check
+        }
+        let door = Door.totalDoors().find(d => d.x === x && d.y === y);
+        if (door && this.isLockedDoor(door)) {
+            return true; // Check for locked doors
+        }
+        return false; // Tile is not blocked
+    }
+    isValidMove(x, y) {
+        return !this.isBlocked(x, y);
     }
     takeDamage(amount) {
         this.blood -= amount;
@@ -1645,12 +1854,20 @@ class Monster extends Actor{
             this.updateSpritePosition();
         }
     };
-    
-    isValidMove = function(x, y) {
-        return x >= 0 && y >= 0 && x < MAP_WIDTH && y < MAP_HEIGHT && !this.isBlocked(x, y);
-    };
+    isOutOfBounds(x, y) {
+        return x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT;
+    }
+
+    isWalkableTile(x, y) {
+        // Assuming floorMap is a globally accessible structure
+        return floorMap[y][x].value === 157; // Only floor tiles are walkable
+    }
+    isLockedDoor(door) {
+        return door && door.isLocked;
+    }
     
     die() {
+        console.log("Monster "+ this.name + " died!");
         this.isDead = true;
         this.sprite.firstTile.visible = false;
         this.sprite.secondTile.visible = false;
@@ -1664,55 +1881,154 @@ class Monster extends Actor{
         this.scheduler.remove(this);
         this.engine._lock();  // This ensures the current turn completes before the monster is removed
     }
+    move(direction) {
+        let [dx, dy] = this.getDeltaXY(direction);
+        let [newTileX, newTileY] = [this.x + dx, this.y + dy];
+
+        if (this.isValidMove(newTileX, newTileY)) {
+            this.x = newTileX;
+            this.y = newTileY;
+            this.handleTileEffects(newTileX, newTileY);
+            this.updateSpritePosition();
+
+            let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
+            if (door && !door.isLocked && !door.isOpen) {
+                door.open(); // Automatically open unlocked doors
+            }
+        }
+    }
+    handleTileEffects(newTileX, newTileY) {
+        let atmosphereTileValue = atmosphereMap[newTileY][newTileX]?.value;
+
+        // Check for fire tile
+        if (atmosphereTileValue === 300) {  // Assuming 300 represents fire tiles
+            if (this.isFlammable && !this.isBurning) {
+                this.isBurning = true;
+                this.burningTurns = 0;
+                this.messageList.addMessage(`${this.name} stepped into fire!`);
+            }
+        }
+    }
+
+    applyDamageEffects() {
+        console.log("tried applying damage to monster " + this.name);
+        if (this.isBurning) {
+            this.blood -= 20;  // Or whatever damage value is appropriate
+            this.burningTurns++;
+            this.messageList.addMessage(`${this.name} is on fire!`);
+
+            if (this.burningTurns > 3 || (this.burningTurns > 3 && Math.random() < 0.5) || this.burningTurns > 5 && atmosphereMap[this.y][this.x].value != 300) {
+                this.isBurning = false;
+                this.messageList.addMessage(`${this.name} is no longer on fire.`);
+            }
+        }
+    }
     printStats() {
         this.inspector.clearMessages();
         this.inspector.addMessage( "Name: " + this.name);
         this.inspector.addMessage( "Blood: " + this.blood);
     }
+    
+    act() {
+        if (this.bleeding && Math.random() < 0.7) {
+            dripBlood(this.x, this.y, this.bloodColor);
+        }
+
+        this.getTargetsInRange();
+
+        if(this.target) {
+            if (this.canSeeTarget(this.target)) {
+                this.sighted = true;
+                for (let attackKey of this.attacks) {
+                    Attacks[attackKey](this, this.target);
+                }
+            } else {
+                this.sighted = false;
+            }
+            this.target = null;
+        }
+
+        if (this.sighted) {
+            this.followTarget();
+        } else if(this.turnsWaited >= this.actFrequency) {
+            for(let i = 0; i < this.speed; i++) {
+                this.moveRandomly();
+            }
+            this.turnsWaited = 0;
+        } else {
+            this.turnsWaited++;
+        }
+
+        this.applyDamageEffects();  // Apply effects like burning from fire tiles
+        this.engine.unlock();       // Unlock the engine after actions
+    }
+    decideNextMove() {
+        //logic for move decision here?
+    }
 }
+
+Monster.prototype.findClosestPlayer = function() {
+    let closest = null;
+    let minDistance = Infinity;
+    players.forEach(player => {
+        if (!player.isDead) {
+            let distance = Math.sqrt(Math.pow(player.x - this.x, 2) + Math.pow(player.y - this.y, 2));
+            if (distance < minDistance) {
+                minDistance = distance;
+                closest = player;
+            }
+        }
+    });
+    return closest;
+};
+
+Monster.prototype.canSeeTarget = function(target) {
+    // Assume line of sight checking function exists; you may need to implement this based on your game's logic
+    return true; // Simplified for example
+};
 
 function createMonsterSprite(monster) {
     activeEntities.push(this);
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let firstTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.firstTilePosition.x * TILE_WIDTH, 
-        monster.firstTilePosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        monster.firstTilePosition.x * globalVars.TILE_WIDTH, 
+        monster.firstTilePosition.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteFirstTile = new PIXI.Sprite(firstTileTexture);
     spriteFirstTile.scale.set(SCALE_FACTOR);
     spriteFirstTile.zIndex = 2;
 
     let secondTileTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.secondTilePosition.x * TILE_WIDTH, 
-        monster.secondTilePosition.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        monster.secondTilePosition.x * globalVars.TILE_WIDTH, 
+        monster.secondTilePosition.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteSecondTile = new PIXI.Sprite(secondTileTexture);
     spriteSecondTile.scale.set(SCALE_FACTOR);
     spriteSecondTile.zIndex = 1;
 
-    spriteFirstTile.x = monster.x * TILE_WIDTH * SCALE_FACTOR;
-    spriteFirstTile.y = monster.y * TILE_HEIGHT * SCALE_FACTOR;
+    spriteFirstTile.x = monster.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+    spriteFirstTile.y = monster.y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
     if (monster.spriteFlip.firstTile.x) {
         spriteFirstTile.scale.x *= -1; // Flip horizontally
-        spriteFirstTile.x += TILE_WIDTH * SCALE_FACTOR;
+        spriteFirstTile.x += globalVars.TILE_WIDTH * SCALE_FACTOR;
     }
     if (monster.spriteFlip.firstTile.y) {
         spriteFirstTile.scale.y *= -1; // Flip vertically
-        spriteFirstTile.y += TILE_HEIGHT * SCALE_FACTOR;
+        spriteFirstTile.y += globalVars.TILE_HEIGHT * SCALE_FACTOR;
     }
     if (monster.spriteFlip.secondTile.x) {
         spriteSecondTile.scale.x *= -1; // Flip horizontally
-        spriteSecondTile.x += TILE_WIDTH * SCALE_FACTOR;
+        spriteSecondTile.x += globalVars.TILE_WIDTH * SCALE_FACTOR;
     }
     if (monster.spriteFlip.secondTile.y) {
         spriteSecondTile.scale.y *= -1; // Flip vertically
-        spriteSecondTile.y += TILE_HEIGHT * SCALE_FACTOR;
+        spriteSecondTile.y += globalVars.TILE_HEIGHT * SCALE_FACTOR;
     }
     if (monster.upright) {
         spriteSecondTile.x = spriteFirstTile.x;
-        spriteSecondTile.y = spriteFirstTile.y - TILE_HEIGHT * SCALE_FACTOR;
+        spriteSecondTile.y = spriteFirstTile.y - globalVars.TILE_HEIGHT * SCALE_FACTOR;
     } else {
-        spriteSecondTile.x = spriteFirstTile.x + TILE_WIDTH * SCALE_FACTOR;
+        spriteSecondTile.x = spriteFirstTile.x + globalVars.TILE_WIDTH * SCALE_FACTOR;
         spriteSecondTile.y = spriteFirstTile.y;
     }
     if (monster.spriteFlip.firstTile.x) {
@@ -1732,18 +2048,18 @@ function createMonsterSprite(monster) {
 
     monster.sprite = { firstTile: spriteFirstTile, secondTile: spriteSecondTile };
     let firstShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.firstShadowTile.x * TILE_WIDTH, 
-        monster.firstShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        monster.firstShadowTile.x * globalVars.TILE_WIDTH, 
+        monster.firstShadowTile.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteFirstShadow = new PIXI.Sprite(firstShadowTexture);
     spriteFirstShadow.scale.set(SCALE_FACTOR);
     spriteFirstShadow.zIndex = 6; // Set zIndex to show it in front of all other tiles
     spriteFirstShadow.visible = false;
 
     let secondShadowTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        monster.secondShadowTile.x * TILE_WIDTH, 
-        monster.secondShadowTile.y * TILE_HEIGHT, 
-        TILE_WIDTH, TILE_HEIGHT));
+        monster.secondShadowTile.x * globalVars.TILE_WIDTH, 
+        monster.secondShadowTile.y * globalVars.TILE_HEIGHT, 
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
     let spriteSecondShadow = new PIXI.Sprite(secondShadowTexture);
     spriteSecondShadow.scale.set(SCALE_FACTOR);
     spriteSecondShadow.zIndex = 3; // Set zIndex to show it in front of the footprint but behind the wall
@@ -1885,8 +2201,8 @@ class Fire extends Entity {
                         fire.sprite.scale.x *= -1;
                 
                         // Adjust sprite's position due to anchor change
-                        fire.sprite.x += TILE_WIDTH * SCALE_FACTOR / 2;
-                        fire.sprite.y += TILE_HEIGHT * SCALE_FACTOR / 2;
+                        fire.sprite.x += globalVars.TILE_WIDTH * SCALE_FACTOR / 2;
+                        fire.sprite.y += globalVars.TILE_HEIGHT * SCALE_FACTOR / 2;
                     }
                                     
                     this.scheduler.add(fire, true); 
@@ -2073,7 +2389,9 @@ const ItemType = Object.freeze({
     "BOW": 1,
     "KEY": 2,
     "ARROW": 3,
-    "FLOWER": 4
+    "FLOWER": 4,
+    "CRADLE": 5,
+    "SWORD": 6,
 });
 
 class Item {
@@ -2116,13 +2434,20 @@ class Item {
                 this._objectNumber = 200;
                 this.colorValue = colorValue;
                 break;
+            case ItemType.CRADLE:
+                this._name = 'Cradle';
+                this._type = type;
+                this._tileIndex = {x: 8, y: 0};
+                this._objectNumber = 3;
+                this.colorValue = colorValue;
+                break;
         }
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         this.spriteTexture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-            this._tileIndex.x * TILE_WIDTH, 
-            this._tileIndex.y * TILE_HEIGHT, 
-            TILE_WIDTH, 
-            TILE_HEIGHT
+            this._tileIndex.x * globalVars.TILE_WIDTH, 
+            this._tileIndex.y * globalVars.TILE_HEIGHT, 
+            globalVars.TILE_WIDTH, 
+            globalVars.TILE_HEIGHT
         ));
         this.sprite = new PIXI.Sprite(this.spriteTexture);
         this.sprite.interactive = true;
@@ -2136,16 +2461,22 @@ class Item {
             inspector.hideBox();
             messageList.showBox();
         });
-        if (type === ItemType.KEY) {
-            this.sprite.tint = this.colorValue;
-        }
-
+        
         // Set position, scale, and zIndex of the sprite
-        this.sprite.position.set(x * TILE_WIDTH * SCALE_FACTOR, y * TILE_HEIGHT * SCALE_FACTOR);
+        this.sprite.position.set(x * globalVars.TILE_WIDTH * SCALE_FACTOR, y * globalVars.TILE_HEIGHT * SCALE_FACTOR);
         this.sprite.scale.set(SCALE_FACTOR);
         this.sprite.zIndex = 2;
-        if (type === ItemType.FLOWER || type === ItemType.KEY) {
+        if (type === ItemType.FLOWER || type === ItemType.KEY ) { 
+            this.sprite.blendMode = PIXI.BLEND_MODES.NORMAL;  
             this.sprite.tint = colorValue;
+           //this.sprite.tint = 0xFF0000
+            
+        }
+        if (type === ItemType.CRADLE) { 
+            this.sprite.blendMode = PIXI.BLEND_MODES.NORMAL;  
+           
+            this.sprite.tint = 0xFFFF00
+            
         }
         // Add sprite to gameContainer
         gameContainer.addChild(this.sprite);
@@ -2394,7 +2725,7 @@ class Exit {
     
             if (spriteInfo.flipV) {
                 sprite.scale.y *= -1;
-                sprite.y += TILE_HEIGHT * SCALE_FACTOR;
+                sprite.y += globalVars.TILE_HEIGHT * SCALE_FACTOR;
             }
     
             this.sprites.push(sprite);
@@ -2443,9 +2774,9 @@ function checkGameState() {
 function getTextureFromIndices(index) {
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        index.x * TILE_WIDTH,
-        index.y * TILE_HEIGHT,
-        TILE_WIDTH, TILE_HEIGHT));
+        index.x * globalVars.TILE_WIDTH,
+        index.y * globalVars.TILE_HEIGHT,
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
 
     return texture;
 }
@@ -2468,14 +2799,14 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        index.x * TILE_WIDTH,
-        index.y * TILE_HEIGHT,
-        TILE_WIDTH, TILE_HEIGHT));
+        index.x * globalVars.TILE_WIDTH,
+        index.y * globalVars.TILE_HEIGHT,
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
 
     let sprite = new PIXI.Sprite(texture);
     sprite.scale.set(SCALE_FACTOR);
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
     if (tint) {
         sprite.tint = tint;
     }
@@ -2522,7 +2853,7 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
     // Update zIndex for objectMap based on y position compared to walls
     if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
-        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+        if (y * globalVars.TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
@@ -2549,14 +2880,14 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
 
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
     let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        index.x * TILE_WIDTH,
-        index.y * TILE_HEIGHT,
-        TILE_WIDTH, TILE_HEIGHT));
+        index.x * globalVars.TILE_WIDTH,
+        index.y * globalVars.TILE_HEIGHT,
+        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
 
     let sprite = new PIXI.Sprite(texture);
     sprite.scale.set(SCALE_FACTOR);
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR;
+    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR;
+    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
     if (tint) {
         sprite.tint = tint;
     }
@@ -2603,7 +2934,7 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
     // Update zIndex for objectMap based on y position compared to walls
     if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
-        if (y * TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+        if (y * globalVars.TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
@@ -2645,8 +2976,8 @@ function createVoid(x, y) {
     }
 
     // Adjust sprite's position due to anchor change
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
+    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR + globalVars.TILE_WIDTH * SCALE_FACTOR / 2;
+    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR + globalVars.TILE_HEIGHT * SCALE_FACTOR / 2;
 }
 
 function createChasmWall(x, y) {
@@ -2666,8 +2997,8 @@ function createChasmWall(x, y) {
     }
 
     // Adjust sprite's position due to anchor change
-    sprite.x = x * TILE_WIDTH * SCALE_FACTOR + TILE_WIDTH * SCALE_FACTOR / 2;
-    sprite.y = y * TILE_HEIGHT * SCALE_FACTOR + TILE_HEIGHT * SCALE_FACTOR / 2;
+    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR + globalVars.TILE_WIDTH * SCALE_FACTOR / 2;
+    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR + globalVars.TILE_HEIGHT * SCALE_FACTOR / 2;
 }
 
 
@@ -3203,7 +3534,7 @@ class UIBox {
     }
 }
 // This function will run when the spritesheet has finished loading
-function setup() {
+async function setup() {
     dungeonGeneration();
     addFloorsAndVoid();
     evaluateMapAndCreateWalls();
@@ -3235,7 +3566,9 @@ function setup() {
     let randomTile3 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile4 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile5 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
-
+    let randomTile6 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile7 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile8 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     //add exits, they don't work yet
    /*  let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let upExitTile;
@@ -3253,7 +3586,9 @@ function setup() {
     currentLevel.upExitPosition = {x: upExitTile.x, y: upExitTile.y};
     */
 
-        
+    
+    
+    
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
     inspector = new UIBox([], 30, 10, true);
 
@@ -3263,7 +3598,7 @@ function setup() {
 
     PIXI.Loader.shared.onComplete.add(() => {
         for (let i = 0; i < 7; i++) { // assuming you have 4 frames of fire animation
-            let rect = new PIXI.Rectangle(i * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT);
+            let rect = new PIXI.Rectangle(i * globalVars.TILE_WIDTH, 0, globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT);
             let texture = new PIXI.Texture(PIXI.Loader.shared.resources.fire.texture.baseTexture, rect);
             fireFrames.push(texture);
         }
@@ -3281,8 +3616,18 @@ function setup() {
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
         scheduler.add(basilisk, true);
-        new Item(ItemType.BOW,randomTile3.x, randomTile3.y, '0xFFFFFF', 1);
-        new Item(ItemType.ARROW,randomTile4.x, randomTile4.y, '0xFFFFFF', 3);
+        let skeleton1 = new Monster(MonsterType.SKELETON, randomTile6.x, randomTile6.y, scheduler, engine, messageList, inspector);
+        createMonsterSprite(skeleton1);
+        scheduler.add(skeleton1, true);
+        let skeleton2 = new Monster(MonsterType.SKELETON, randomTile7.x, randomTile7.y, scheduler, engine, messageList, inspector);
+        createMonsterSprite(skeleton2);
+        scheduler.add(skeleton2, true);
+        let skeleton3 = new Monster(MonsterType.SKELETON, randomTile8.x, randomTile8.y, scheduler, engine, messageList, inspector);
+        createMonsterSprite(skeleton3);
+        scheduler.add(skeleton3, true);
+        new Item(ItemType.BOW,randomTile3.x, randomTile3.y, 0xFFFFFF, 1);
+        new Item(ItemType.ARROW,randomTile4.x, randomTile4.y, 0xFFFFFF, 3);
+        
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
@@ -3301,6 +3646,7 @@ function setup() {
         }
  
         engine.start(); // start the engine
+        resetTurnTimer();
     });
 
 }
