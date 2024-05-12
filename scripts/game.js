@@ -104,6 +104,35 @@ let sound;
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
 
+// attempted fix for freeze when wake from sleep
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        PIXI.Ticker.shared.start();  // Restart PIXI ticker
+        createjs.Ticker.paused = false;  // Resume CreateJS ticker
+        engine.start();  // Resume ROT.js engine if it was stopped
+        console.log('Game resumed');
+    } else {
+        PIXI.Ticker.shared.stop();  // Stop PIXI ticker to prevent unnecessary processing
+        createjs.Ticker.paused = true;  // Pause CreateJS ticker
+        engine.lock();  // Optionally lock ROT.js engine
+        console.log('Game paused');
+    }
+});
+function checkAndLogState() {
+    console.log('Engine running:', engine.isRunning());
+    console.log('PIXI Ticker running:', !PIXI.Ticker.shared.started);
+    console.log('CreateJS Ticker status:', createjs.Ticker.paused);
+}
+document.addEventListener('visibilitychange', checkAndLogState);
+function restartTickers() {
+    PIXI.Ticker.shared.stop();
+    PIXI.Ticker.shared.start();
+    createjs.Ticker.paused = false;
+}
+// end sleep fixes
+
+
+
 //var audio = new Audio('assets/sound/grottoAudiosprite.mp3');
 //audio.play();
 
@@ -1135,7 +1164,7 @@ class Player extends Actor{
             this.handleArrowAim();
             console.log("bow attack");
         }
-        if (event.key === 'c' || event.code === 'KeyC') {
+        if (event.key === 'q' || event.code === 'KeyQ') {
             this.handleCloseDoor();
             console.log("close door");
         }
