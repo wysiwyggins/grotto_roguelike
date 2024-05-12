@@ -366,6 +366,7 @@ class Entity {
 // Actor is the class that Player and Monster inherit from, it's new and probably not utilized enough yet
 
 class Actor {
+    static allActors = [];
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         this.isDead = false;
         this.type = type;
@@ -383,6 +384,7 @@ class Actor {
         this.isFlammable = true;
         this.isBurning = false;
         this.burningTurns = 0;
+        Actor.allActors.push(this);
     }
 
     takeDamage(amount) {
@@ -397,7 +399,7 @@ class Actor {
         this.scheduler.remove(this);
         this.messageList.addMessage(`${this.name} returns to dust.`);
     }
-    
+
     checkForItems(x, y) {
         let item = objectMap[y][x]?.item;
         if (item) this.pickUpItem(item, x, y);
@@ -426,6 +428,11 @@ class Actor {
         }
         if (item.type === ItemType.FLOWER) {
             this.flowers++;
+            if (this.flowers >= 10) {
+                window.location.href = 'patterns.html';    
+            } 
+        } if (item.type === ItemType.CRADLE) { 
+            window.location.href = 'cradle.html';
         }
 
         // Log a message about the item picked up
@@ -651,6 +658,25 @@ class Player extends Actor{
             console.log("Out of bounds");
             return;
         }
+
+        let otherActor = this.findActorAt(newTileX, newTileY);
+            if (otherActor) {
+                // Determine next tile in the direction for the other actor
+                let [nextTileX, nextTileY] = [newTileX + dx, newTileY + dy];
+
+                // Check if the next tile is walkable
+                if (this.isWalkableTile(nextTileX, nextTileY) && !this.findActorAt(nextTileX, nextTileY)) {
+                    // Move the other actor to the next tile
+                    otherActor.updatePosition(nextTileX, nextTileY);
+                    otherActor.updateSpritePosition();
+                    this.messageList.addMessage(`You shove the ${otherActor.name}.`);
+                } else {
+                    // If next tile is not walkable or occupied, prevent movement
+                    this.messageList.addMessage(`You can't move there; ${otherActor.name} blocks the way.`);
+                    return;
+                }
+            }
+
         
         let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
         if (this.isLockedDoor(door)) return;
@@ -685,6 +711,16 @@ class Player extends Actor{
             this.updateSprites();
         }
     }
+
+    findActorAt(x, y) {
+        // Assuming all actors including monsters and NPCs are stored in a list
+        for (let actor of Actor.allActors) {  // Replace 'actors' with actual list of actors
+            if (actor.x === x && actor.y === y && !actor.isDead) {
+                return actor;
+            }
+        }
+        return null;
+    }
     
     handleExit(exit) {
         let currentLevelIndex = levels.indexOf(dungeon);
@@ -705,11 +741,29 @@ class Player extends Actor{
             }
         }
     
-        // Play a sound or animation if you like
         playExitSound();
         this.updateSprites();
     }
     
+    die(){
+        this.messageList.addMessage("You are dead!");
+        this.type = PlayerType.SKELETON;
+        this.isDead = true;
+        this.isSkeletonized = true;
+        
+        this.skeletonize();
+        for (let i = this.inventory.length - 1; i >= 0; i--) {
+            const item = this.inventory[i];
+            if (item.type === ItemType.KEY) {
+                // Find an adjacent, walkable tile
+                const adjacentTile = this.findAdjacentWalkableTile();
+                if (adjacentTile) {
+                    // Drop the key on the tile
+                    this.dropItemOnTile(item, adjacentTile.x, adjacentTile.y);
+                }
+            }
+        }
+    }
 
     getDeltaXY(direction) {
         let dx = 0, dy = 0;
@@ -815,26 +869,7 @@ class Player extends Actor{
             this.fireEntryDirection = null;
         }
     }
-
-    die(){
-        this.messageList.addMessage("You are dead!");
-        this.type = PlayerType.SKELETON;
-        this.isDead = true;
-        this.isSkeletonized = true;
-        
-        this.skeletonize();
-        for (let i = this.inventory.length - 1; i >= 0; i--) {
-            const item = this.inventory[i];
-            if (item.type === ItemType.KEY) {
-                // Find an adjacent, walkable tile
-                const adjacentTile = this.findAdjacentWalkableTile();
-                if (adjacentTile) {
-                    // Drop the key on the tile
-                    this.dropItemOnTile(item, adjacentTile.x, adjacentTile.y);
-                }
-            }
-        }
-    }
+    
 
     updateSprites(newTileX, newTileY) {
         this.sprite.footprint.x = this.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
@@ -928,7 +963,13 @@ class Player extends Actor{
         if (path.length === 0) {
             if (!this.zeroPlayerMode) {
                 this.messageList.addMessage("You're not sure how to get there.");
-            } 
+            } else {
+                this.failedMoveAttempts++;
+                console.log(`Failed move attempts: ${this.failedMoveAttempts}`);
+                if (this.failedMoveAttempts >= 3) { // If failed 3 times in zero-player mode, change page
+                    window.location.href = 'patterns.html';
+                }
+            }
             return;
         }
         this.failedMoveAttempts = 0;
@@ -1071,6 +1112,12 @@ class Player extends Actor{
             case '3':
             case 'c':
                 newDirection = 'down-right';
+                break;
+            case '}':
+                window.location.href = 'abyss.html';
+                break;
+            case '{':
+                window.location.href = 'home.html';
                 break;
             default:
                 messageList.addMessage('Time passes.');
@@ -1241,8 +1288,10 @@ class Player extends Actor{
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
-            if (!this.isDead){
+            if (this.isDead == false){
                 sound.play('ouch');
+            } else {
+                playBumpSound();
             }
             this.burningTurns++;
             this.messageList.addMessage("You are on fire!");
@@ -1272,6 +1321,9 @@ class Player extends Actor{
             this.type = PlayerType.PILE;
             this.isDead = true;
             this.incinerate();
+        }
+        if (this.blood < -300) {
+            window.location.href = 'abyss.html';
         }
     }
     skeletonize() {
@@ -1354,7 +1406,6 @@ class Player extends Actor{
     }
     
 }
-
 function createPlayerSprite(player) {
     players.push(player);
     let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
@@ -1767,8 +1818,6 @@ class Monster extends Actor{
                 break;
         }
 
-        
-
         this.updateSpritePosition = function() {
             if (this.sprite.firstTile && this.sprite.secondTile) {
                 this.sprite.firstTile.x = this.x * globalVars.TILE_WIDTH * SCALE_FACTOR;
@@ -1851,6 +1900,7 @@ class Monster extends Actor{
             // Move towards the target
             this.x = nextX;
             this.y = nextY;
+            this.handleTileEffects(this.x, this.y);
             this.updateSpritePosition();
         }
     };
@@ -1895,6 +1945,7 @@ class Monster extends Actor{
             if (door && !door.isLocked && !door.isOpen) {
                 door.open(); // Automatically open unlocked doors
             }
+            this.handleTileEffects(this.x, this.y);
         }
     }
     handleTileEffects(newTileX, newTileY) {
@@ -1906,6 +1957,7 @@ class Monster extends Actor{
                 this.isBurning = true;
                 this.burningTurns = 0;
                 this.messageList.addMessage(`${this.name} stepped into fire!`);
+                this.takeDamage(10);
             }
         }
     }
@@ -1933,7 +1985,6 @@ class Monster extends Actor{
         if (this.bleeding && Math.random() < 0.7) {
             dripBlood(this.x, this.y, this.bloodColor);
         }
-
         this.getTargetsInRange();
 
         if(this.target) {
