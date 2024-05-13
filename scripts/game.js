@@ -104,7 +104,7 @@ let sound;
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
 
-// attempted fix for freeze when wake from sleep
+// fix for freeze when wake from sleep
 document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
         PIXI.Ticker.shared.start();  // Restart PIXI ticker
@@ -457,12 +457,8 @@ class Actor {
         }
         if (item.type === ItemType.FLOWER) {
             this.flowers++;
-            if (this.flowers >= 10) {
-                window.location.href = 'patterns.html';    
-            } 
-        } if (item.type === ItemType.CRADLE) { 
-            window.location.href = 'cradle.html';
-        }
+           
+        } 
 
         // Log a message about the item picked up
         let message = '';
@@ -515,6 +511,7 @@ class Player extends Actor{
         this.name = "You";
         this.isSkeletonized = false;
         this.isTargeting = false;
+        this.isMining= false;
         
         //players are made of two tiles, a head and feet, they also have some shadow tiles
         //that do complex stuff to show or hide on walls and floors
@@ -689,22 +686,22 @@ class Player extends Actor{
         }
 
         let otherActor = this.findActorAt(newTileX, newTileY);
-            if (otherActor) {
-                // Determine next tile in the direction for the other actor
-                let [nextTileX, nextTileY] = [newTileX + dx, newTileY + dy];
+        if (otherActor && otherActor instanceof Monster) {
+            // Determine next tile in the direction for the other actor
+            let [nextTileX, nextTileY] = [newTileX + dx, newTileY + dy];
 
-                // Check if the next tile is walkable
-                if (this.isWalkableTile(nextTileX, nextTileY) && !this.findActorAt(nextTileX, nextTileY)) {
-                    // Move the other actor to the next tile
-                    otherActor.updatePosition(nextTileX, nextTileY);
-                    otherActor.updateSpritePosition();
-                    this.messageList.addMessage(`You shove the ${otherActor.name}.`);
-                } else {
-                    // If next tile is not walkable or occupied, prevent movement
-                    this.messageList.addMessage(`You can't move there; ${otherActor.name} blocks the way.`);
-                    return;
-                }
+            // Check if the next tile is walkable
+            if (this.isWalkableTile(nextTileX, nextTileY) && !this.findActorAt(nextTileX, nextTileY)) {
+                // Move the other actor to the next tile
+                otherActor.updatePosition(nextTileX, nextTileY);
+                otherActor.updateSpritePosition();
+                this.messageList.addMessage(`You shove the ${otherActor.name}.`);
+            } else {
+                // If next tile is not walkable or occupied, prevent movement
+                this.messageList.addMessage(`You can't move there; ${otherActor.name} blocks the way.`);
+                return;
             }
+        }
 
         
         let door = Door.totalDoors().find(d => d.x === newTileX && d.y === newTileY);
@@ -1164,9 +1161,22 @@ class Player extends Actor{
             this.handleArrowAim();
             console.log("bow attack");
         }
-        if (event.key === 'q' || event.code === 'KeyQ') {
+        if (event.key === 'x' || event.code === 'KeyX') {
             this.handleCloseDoor();
             console.log("close door");
+        }
+        if (event.key === 'i' || event.code === 'KeyI') {
+            messageList.hideBox(); 
+            player.printStats();
+            inspector.showBox();  
+            inspector.render();  
+        } else if (event.key !== 'i'|| event.code !== 'KeyI'){
+            inspector.hideBox(); 
+            messageList.showBox(); 
+            messageList.render();  
+        }
+        if (event.key === 'm' || event.code === 'KeyM') {
+            this.handleMine();
         }
     }
     
@@ -1177,6 +1187,28 @@ class Player extends Actor{
             this.messageList.addMessage("Aim bow at?");
         } else {
             this.messageList.addMessage("You have no bow to shoot with.");
+        }
+    }
+
+    handleMine() {
+        const hasMattock = this.inventory.some(item => item.type === ItemType.MATTOCK);
+        if (hasMattock) {
+           this.isMining = true;
+           this.messageList.addMessage("Mine where?");
+        } else {
+            this.messageList.addMessage("You have no mattock to mine with.");
+        }
+    }
+
+    performMine(x, y) {
+        let adjacentTile = this.getAdjacentPosition(this.x, this.y);
+        let object = objectMap[adjacentTile.y][adjacentTile.x];
+        if (object && object.value === 300) {
+            objectMap[adjacentTile.y][adjacentTile.x] = null;
+            this.messageList.addMessage("You mined some ore.");
+            new Item(ItemType.ORE, adjacentTile.x, adjacentTile.y, '0x999999', 1);
+        } else {
+            this.messageList.addMessage("There's nothing to mine here.");
         }
     }
 
@@ -2471,7 +2503,7 @@ const ItemType = Object.freeze({
     "ARROW": 3,
     "FLOWER": 4,
     "CRADLE": 5,
-    "SWORD": 6,
+    "MATTOCK": 6,
 });
 
 class Item {
@@ -2519,6 +2551,13 @@ class Item {
                 this._type = type;
                 this._tileIndex = {x: 8, y: 0};
                 this._objectNumber = 3;
+                this.colorValue = colorValue;
+                break;
+            case ItemType.MATTOCK:
+                this._name = 'Mattock';
+                this._type = type;
+                this._tileIndex = {x: 3, y: 8};
+                this._objectNumber = 4;
                 this.colorValue = colorValue;
                 break;
         }
@@ -3689,9 +3728,7 @@ async function setup() {
         createPlayerSprite(player);
         scheduler.add(player, true); // the player takes turns
 
-        /* player2 = new Player(PlayerType.ROBOT, randomTile5.x, randomTile5.y, scheduler, engine, messageList, inspector);
-        createPlayerSprite(player2);
-        scheduler.add(player2, true); */
+        
 
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
@@ -3707,6 +3744,7 @@ async function setup() {
         scheduler.add(skeleton3, true);
         new Item(ItemType.BOW,randomTile3.x, randomTile3.y, 0xFFFFFF, 1);
         new Item(ItemType.ARROW,randomTile4.x, randomTile4.y, 0xFFFFFF, 3);
+        new Item(ItemType.MATTOCK,randomTile5.x, randomTile5.y, 0xFFFFFF, 4);
         
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
