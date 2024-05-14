@@ -35,12 +35,14 @@ let turnTimeout;
 const rect = app.view.getBoundingClientRect();
 const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
 const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
+const SPRITESHEET_COLUMNS = 23;
+const SPRITESHEET_ROWS = 11;
 //dungeon is used by rot.js' dungeon drawing functions, we need a global stub to get things like
 //door locations
 let dungeon = null;
 let currentTreasureRoom; // right now one room has locked doors.
 let globalDoorCounter = 0;
-let currentLevelIndex = 1; // not used yet
+let currentLevelIndex = 1;
 
 const BOX_TOP_LEFT = {x: 8, y: 9};
 const BOX_HORIZONTAL = {x: 11, y: 8};
@@ -3586,10 +3588,10 @@ class UIBox {
     charToSpriteLocation(char) {
         let charCode = char.charCodeAt(0);
         let tileNumber = charCode; 
-        let spriteColumn = tileNumber % globalVars.SPRITESHEET_COLUMNS;
-        let spriteRow = Math.floor(tileNumber / globalVars.SPRITESHEET_COLUMNS);
+        let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
+        let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
         
-        if(spriteColumn >= globalVars.SPRITESHEET_COLUMNS) {
+        if(spriteColumn >= SPRITESHEET_COLUMNS) {
             spriteColumn = 0;
             spriteRow++;
         }
