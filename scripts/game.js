@@ -1,11 +1,23 @@
+// Get the display resolution and device pixel ratio
+const devicePixelRatio = window.devicePixelRatio || 1;
+const displayWidth = Math.floor(window.innerWidth * devicePixelRatio);
+const displayHeight = Math.floor(window.innerHeight * devicePixelRatio);
+
+// Calculate map dimensions based on tile size
+const TILE_WIDTH = 40; // width of one tile in pixels
+const TILE_HEIGHT = 30; // height of one tile in pixels
+const MAP_WIDTH = Math.floor(displayWidth / TILE_WIDTH);
+const MAP_HEIGHT = Math.floor(displayHeight / TILE_HEIGHT);
+
 // Create a new Pixi Application
 let app = new PIXI.Application({
-    width: 1300,
-    height: 900,
+    width: displayWidth,
+    height: displayHeight,
     backgroundColor: 0xf5f5ee,
-    resolution: window.devicePixelRatio || 1,
-    autoDensity: true
+    autoDensity: true,
+    resolution: 1
 });
+
 
 app.stage.sortableChildren = true;
 // pixi uses this to switch zIndex layering within one of it's containers
@@ -30,13 +42,12 @@ let player = null;
 
 // Add the app view to our HTML document
 document.getElementById('game').appendChild(app.view);
-let turnTimeout; 
+
+let turnTimeout; // timer for passing turns 
+
 // Set up some constants
 const rect = app.view.getBoundingClientRect();
-const SCALE_FACTOR = 0.5; // Scaling factor for HiDPI displays
-const SPRITE_POSITION = 5; // Position of the sprite (in tiles)
-const SPRITESHEET_COLUMNS = 23;
-const SPRITESHEET_ROWS = 11;
+const SCALE_FACTOR = 1; // Scaling factor for HiDPI displays
 //dungeon is used by rot.js' dungeon drawing functions, we need a global stub to get things like
 //door locations
 let dungeon = null;
@@ -100,7 +111,6 @@ let sound;
 //ticker is a tween thing I use for things that animate in place, like fire and smoke
 createjs.Ticker.framerate = 60;
 createjs.Ticker.addEventListener("tick", createjs.Tween);
-
 // fix for freeze when wake from sleep
 document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
@@ -116,7 +126,6 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 function checkAndLogState() {
-    console.log('Engine running:', engine.isRunning());
     console.log('PIXI Ticker running:', !PIXI.Ticker.shared.started);
     console.log('CreateJS Ticker status:', createjs.Ticker.paused);
 }
@@ -128,11 +137,6 @@ function restartTickers() {
 }
 // end sleep fixes
 
-
-
-//var audio = new Audio('assets/sound/grottoAudiosprite.mp3');
-//audio.play();
-
 function passTurn() {
     console.log('Turn passed due to inactivity.');
 
@@ -140,7 +144,7 @@ function passTurn() {
         if (!player.isDead) {
             player.inactiveTurns++;
             console.log(`Player inactive turns: ${player.inactiveTurns}`);
-            if (player.inactiveTurns >= 3) {
+            if (player.inactiveTurns >= 10) {
                 player.zeroPlayerMode = true; // Set zero-player mode
                 console.log("Entering zero-player mode");
                 moveToNearestItem(player);
@@ -169,16 +173,22 @@ function passTurn() {
     resetTurnTimer();
 }
 
+
+
 function resetTurnTimer() {
     clearTimeout(turnTimeout);  // Clear the existing timer
-    turnTimeout = setTimeout(passTurn, 10000); //10 sec timer
+    turnTimeout = setTimeout(passTurn, 5000); //5 sec timer
 }
+
+//var audio = new Audio('assets/sound/grottoAudiosprite.mp3');
+//audio.play();
+
 //initialize each of the map arrays
 function createEmptyMap() {
-    let map = new Array(globalVars.CANVAS_ROWS);
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
-        map[y] = new Array(globalVars.CANVAS_COLS);
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+    let map = new Array(MAP_HEIGHT);
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        map[y] = new Array(MAP_WIDTH);
+        for (let x = 0; x < MAP_WIDTH; x++) {
             map[y][x] = 0;
         }
     }
@@ -211,16 +221,15 @@ PIXI.Loader.shared.onComplete.add(() => {
 });
 //console.log(smokeFrames);
 
-fetch("../data/grottoAudiosprite.json")
+fetch("data/grottoAudiosprite.json")
   .then(response => response.json())
   .then(data => {
     audioSpriteData = data;
     initHowler();
   })
   .catch(error => {
-    console.error("Error fetching audio sprite data:", error);
+    console.error("Error fetching sprite data:", error);
   });
-
 
 function initHowler() {
 // Correct the urls path as needed
@@ -329,7 +338,7 @@ function goToNextLevel(currentLevelIndex) {
 // in most roguelikes everything would inherit from entity, but here it's just plants, smoke, fire and gas etc. 
 
 class Entity {
-    constructor(x, y, scheduler, frames, zIndex, map) {
+    constructor(x, y, scheduler, frames, messageList, zIndex, map) {
         activeEntities.push(this);
         this.x = x;
         this.y = y;
@@ -337,13 +346,14 @@ class Entity {
         this.map = map;
         this.name = "Entity";
         this.isFlammable = false;
+        this.messageList = messageList;
         if (frames.length > 0) {
             this.sprite = new PIXI.AnimatedSprite(frames);
             this.sprite.animationSpeed = 0.1;
             this.sprite.loop = true;
             this.sprite.play();
             this.sprite.position.set(x * globalVars.TILE_WIDTH * SCALE_FACTOR, y * globalVars.TILE_HEIGHT * SCALE_FACTOR); 
-            this.sprite.scale.set(SCALE_FACTOR);
+            //this.sprite.scale.set(SCALE_FACTOR);
             this.sprite.zIndex = zIndex;
             gameContainer.addChild(this.sprite);
 
@@ -491,7 +501,6 @@ const PlayerType = Object.freeze({
     "PILE": 9
     
 });
-
 function resetPlayerStates() {
     players.forEach(player => {
         player.inactiveTurns = 0;
@@ -499,7 +508,6 @@ function resetPlayerStates() {
         player.failedMoveAttempts = 0;
     });
 }
-
 class Player extends Actor{
     constructor(type, x, y, scheduler, engine, messageList, inspector) {
         super(type, x, y, scheduler, engine, messageList, inspector);
@@ -509,7 +517,6 @@ class Player extends Actor{
         this.name = "You";
         this.isSkeletonized = false;
         this.isTargeting = false;
-        this.isMining= false;
         
         //players are made of two tiles, a head and feet, they also have some shadow tiles
         //that do complex stuff to show or hide on walls and floors
@@ -661,7 +668,7 @@ class Player extends Actor{
         // If the player is not in targeting mode
         else {
             // make sure the click is inside the map
-            if (x >= 0 && x < globalVars.CANVAS_COLS && y >= 0 && y < globalVars.CANVAS_ROWS) {
+            if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
                 this.messageList.addMessage("Walking.");
                 this.moveTo(x, y);
             }
@@ -825,7 +832,7 @@ class Player extends Actor{
     }
 
     isOutOfBounds(x, y) {
-        return x < 0 || x >= globalVars.CANVAS_COLS || y < 0 || y >= globalVars.CANVAS_ROWS;
+        return x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT;
     }
 
     isWalkableTile(x, y) {
@@ -990,9 +997,7 @@ class Player extends Actor{
             } else {
                 this.failedMoveAttempts++;
                 console.log(`Failed move attempts: ${this.failedMoveAttempts}`);
-                if (this.failedMoveAttempts >= 3) { // If failed 3 times in zero-player mode, change page
-                    window.location.href = 'patterns.html';
-                }
+                
             }
             return;
         }
@@ -1074,8 +1079,8 @@ class Player extends Actor{
         let newY = this.y - Math.sign(diffY);
     
         // Check for map boundaries
-        newX = Math.max(0, Math.min(globalVars.CANVAS_COLS - 1, newX));
-        newY = Math.max(0, Math.min(globalVars.CANVAS_ROWS - 1, newY));
+        newX = Math.max(0, Math.min(MAP_WIDTH - 1, newX));
+        newY = Math.max(0, Math.min(MAP_HEIGHT - 1, newY));
     
         return { x: newX, y: newY };
     }
@@ -1147,9 +1152,17 @@ class Player extends Actor{
             case 'c':
                 newDirection = 'down-right';
                 break;
+           
             default:
                 messageList.addMessage('Time passes.');
                 break;
+            
+        }
+        if (this.isClosingDoor) {
+            if (newDirection) {
+                this.attemptCloseDoor(newDirection);
+            }
+            return;
         }
         
         if (newDirection) {
@@ -1165,7 +1178,7 @@ class Player extends Actor{
         }
         if (event.key === 'x' || event.code === 'KeyX') {
             this.handleCloseDoor();
-            console.log("close door");
+            console.log("try close door");
         }
         if (event.key === 'i' || event.code === 'KeyI') {
             messageList.hideBox(); 
@@ -1180,6 +1193,12 @@ class Player extends Actor{
         if (event.key === 'm' || event.code === 'KeyM') {
             this.handleMine();
         }
+        if (event.key === 'r' || event.code === 'KeyR') {
+            this.die();
+            if (engine._lock) {
+                engine.unlock();
+            }
+        }
     }
     
     handleArrowAim() {
@@ -1192,45 +1211,6 @@ class Player extends Actor{
         }
     }
 
-    handleMine() {
-        const hasMattock = this.inventory.some(item => item.type === ItemType.MATTOCK);
-        if (hasMattock) {
-           this.isMining = true;
-           this.messageList.addMessage("Mine where?");
-        } else {
-            this.messageList.addMessage("You have no mattock to mine with.");
-        }
-    }
-
-    performMine(targetX, targetY) {
-        console.log("Mining at", targetX, targetY);
-        if (this.isOutOfBounds(targetX, targetY)) {
-            this.messageList.addMessage("You've reached the edge of the underworld.");
-            return;
-        }
-    
-        if (wallMap[targetY][targetX] !== null) {
-            // Remove the wall sprite
-            gameContainer.removeChild(wallMap[targetY][targetX].sprite);
-            wallMap[targetY][targetX] = null; // Remove wall from the map
-            // Create a floor at the mined location
-            createRoughFloor(targetX, targetY);
-            
-            this.messageList.addMessage("You mined the wall.");
-            //
-            // Chance to break the mattock
-            if (Math.random() < 1/6) {
-                this.removeItemOfType(ItemType.MATTOCK);
-                this.messageList.addMessage("Your mattock broke!");
-                this.isMining = false;
-            }
-        } else {
-            this.messageList.addMessage("There is no wall to mine.");
-        }
-        this.isMining = false; // Exit mining mode regardless of outcome
-        //evaluateMapAndCreateWalls(); //this isn't preserving the walkable floor for some reason.
-    }
-    
     removeItemOfType(itemType) {
         const index = this.inventory.findIndex(item => item.type === itemType);
         if (index !== -1) {
@@ -1306,6 +1286,60 @@ class Player extends Actor{
             playArrowSound(false);
         } 
     }
+
+
+    handleMine() {
+        const hasMattock = this.inventory.some(item => item.type === ItemType.MATTOCK);
+        if (hasMattock) {
+           this.isMining = true;
+           this.messageList.addMessage("Mine where?");
+        } else {
+            this.messageList.addMessage("You have no mattock to mine with.");
+        }
+    }
+
+    performMine(targetX, targetY) {
+        console.log("Mining at", targetX, targetY);
+        if (floorMap[targetY][targetX]?.value != null) {
+            if (this.isOutOfBounds(targetX, targetY)) {
+                this.messageList.addMessage("You've reached the edge of the underworld.");
+                return;
+            }
+        
+            if (wallMap[targetY][targetX]?.value !== null) {
+                // Remove the wall sprite
+                gameContainer.removeChild(wallMap[targetY][targetX].sprite);
+                if (wallMap[targetY][targetX]?.value) {
+                    wallMap[targetY][targetX].value = null; // Remove wall from the map
+                }
+                // Create a floor at the mined location
+                createRoughFloor(targetX, targetY);
+                playBumpSound();
+                this.messageList.addMessage("You mined the wall.");
+        
+                // Random chance to place Uranium
+                if (Math.random() < 1/5) {
+                    let uranium = new Uranium(targetX, targetY, this.scheduler, '0xADFF2F');
+                    this.scheduler.add(uranium, true); // Add Uranium to the scheduler
+                    this.messageList.addMessage("You found Uranium!");
+                }
+        
+                // Chance to break the mattock
+                if (Math.random() < 1/20) {
+                    this.removeItemOfType(ItemType.MATTOCK);
+                    this.messageList.addMessage("Your mattock broke!");
+                    this.isMining = false;
+                }
+            } else {
+                this.messageList.addMessage("There is no wall to mine.");
+            }
+        } else {
+            this.messageList.addMessage("You can't mine here.");
+        }
+        this.isMining = false; // Exit mining mode regardless of outcome
+    }
+    
+    
     
     findMonsterAt(x, y) {
         for (let monster of Monster.allMonsters) {  
@@ -1316,12 +1350,13 @@ class Player extends Actor{
         return null;
     }
     
+    
     displayTargetingSprite(x, y) {
         this.targetingX = x;
         this.targetingY = y;
         createSprite(x, y, {x: 12, y: 8}, overlayMap);
     }
-
+    
     removeTargetingSprite() {
         if (this.targetingX !== null && this.targetingY !== null) {
             createSprite(this.targetingX, this.targetingY, {x: 0, y: 0}, overlayMap); // Assuming {x: 0, y: 0} is empty
@@ -1330,8 +1365,41 @@ class Player extends Actor{
         }
     }
     handleCloseDoor() {
-        //oops
+        this.isClosingDoor = true;
+        this.messageList.addMessage("Close which direction?");
     }
+
+    attemptCloseDoor(direction) {
+        let [dx, dy] = this.getDeltaXY(direction);
+        let targetX = this.x + dx;
+        let targetY = this.y + dy;
+    
+        if (this.isOutOfBounds(targetX, targetY)) {
+            this.messageList.addMessage("No door there.");
+            return;
+        }
+    
+        let door = Door.totalDoors().find(door => door.x === targetX && door.y === targetY);
+        if (door) {
+            // Check for an actor on the same tile as the door
+            let actor = Actor.allActors.find(actor => actor.x === targetX && actor.y === targetY && !actor.isDead);
+            if (actor) {
+                this.messageList.addMessage("A "+ actor.name + " is in the way, you can't close the door.");
+                return;
+            }
+    
+            if (!door.isLocked && door.isOpen) {
+                door.close();
+                this.messageList.addMessage("You close the door.");
+            } else {
+                this.messageList.addMessage("No door there.");
+            }
+        } else {
+            this.messageList.addMessage("No door there.");
+        }
+        this.isClosingDoor = false; // Exit closing door mode
+    }
+    
 
     dropItemOnTile(item, x, y) {
         // Remove the item from the player's inventory
@@ -1347,7 +1415,6 @@ class Player extends Actor{
         item.sprite.x = x * globalVars.TILE_WIDTH;
         item.sprite.y = y * globalVars.TILE_HEIGHT;
     }
-
     findAdjacentWalkableTile() {
         // Define the coordinates for the adjacent tiles
         const adjacentCoords = [
@@ -1360,7 +1427,7 @@ class Player extends Actor{
         // Iterate over the coordinates
         for (const coord of adjacentCoords) {
             // Check if the coordinate is within the map bounds
-            if (coord.x >= 0 && coord.x < globalVars.CANVAS_COLS && coord.y >= 0 && coord.y < globalVars.CANVAS_ROWS) {
+            if (coord.x >= 0 && coord.x < MAP_WIDTH && coord.y >= 0 && coord.y < MAP_HEIGHT) {
                 // Check if the tile at the coordinate is walkable
                 if (floorMap[coord.y][coord.x].value === 157) {
                     // Return the coordinate
@@ -1372,15 +1439,10 @@ class Player extends Actor{
         // No walkable tile found
         return null;
     }
-
     applyDamageEffects() {
         if (this.isBurning) {
             this.blood -= 20;
-            if (this.isDead == false){
-                sound.play('ouch');
-            } else {
-                playBumpSound();
-            }
+            sound.play('ouch');
             this.burningTurns++;
             this.messageList.addMessage("You are on fire!");
             
@@ -1411,10 +1473,9 @@ class Player extends Actor{
             this.incinerate();
         }
         if (this.blood < -300) {
-            window.location.href = 'abyss.html';
+            window.location.href = 'index.html';
         }
     }
-
     skeletonize() {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         
@@ -1443,7 +1504,6 @@ class Player extends Actor{
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
     };
-
     incinerate() {
         let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
         
@@ -1472,7 +1532,6 @@ class Player extends Actor{
         this.sprite.footprint.texture = footprintTexture;
         this.sprite.overlay.texture = overlayTexture;
     };
-
     printStats() {
         this.inspector.clearMessages();
         this.inspector.addMessage( "Name: " + this.name);
@@ -1488,7 +1547,15 @@ class Player extends Actor{
         }
         this.inspector.addMessage( "Arrows: " + this.arrows);
         this.inspector.addMessage( "Flowers: " + this.flowers);
-    };
+        this.inspector.addMessage( "" );
+        this.inspector.addMessage( "Controls: ");
+        this.inspector.addMessage( "   Arrow keys/WASD: Move");
+        this.inspector.addMessage( "   B: Aim bow (mouse aim)");
+        this.inspector.addMessage( "   X: Close door");
+        this.inspector.addMessage( "   M: Mine");
+        this.inspector.addMessage( "   I: Character Info");
+        this.inspector.addMessage( "   R: Suicide");
+    }
 
     getDirectionFromKey(key) {
         switch (key) {
@@ -1499,17 +1566,14 @@ class Player extends Actor{
             default: return null;
         }
     }
-
     act() {
         this.engine.lock(); // Lock the engine until we get a valid move
         this.applyDamageEffects();
         checkGameState();
         
-    };
+    }
     
 }
-
-
 
 function createPlayerSprite(player) {
     players.push(player);
@@ -1591,7 +1655,6 @@ function createPlayerSprite(player) {
 
 }
 
-
 async function moveToNearestItem(player) {
     if (engine._lock) {
         engine.unlock();
@@ -1610,9 +1673,7 @@ async function moveToNearestItem(player) {
     } else {
         console.log("No items or immediate threats detected.");
         player.failedMoveAttempts++;
-        if (player.failedMoveAttempts >= 3) {
-            console.log("No movement possible, redirecting...");
-        }
+        
     }
     player.inactiveTurns = 0; // Reset the counter after attempting to move
 }
@@ -1643,6 +1704,54 @@ function findNearestItem(px, py) {
     return nearest;
 }
 
+function keyHoleZoom(player) {
+   
+    const BLANK_TILE = { x: 0, y: 0 };
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            createSprite(x, y, {x: 9, y: 9}, overlayMap, 0);
+        }
+    }
+
+    // Step 2: Locate the player
+    let playerX = player.x;
+    let playerY = player.y;
+
+    // Step 3: Clear the tile at the player's position
+    createSprite(playerX, playerY, BLANK_TILE, overlayMap, 0);
+
+    // Step 4: Gradually clear the tiles in a growing circle
+    let radius = 1;
+    let maxRadius = Math.max(MAP_WIDTH, MAP_HEIGHT);
+    sound.play('levelout');
+    function revealCircle() {
+        let tilesCleared = false;
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= radius) {
+                    let x = playerX + dx;
+                    let y = playerY + dy;
+                    if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
+                        if (overlayMap[y][x] !== BLANK_TILE) {
+                            createSprite(x, y, BLANK_TILE, overlayMap, 0);
+                            tilesCleared = true;
+                        }
+                    }
+                }
+            }
+        }
+        if (radius < maxRadius && tilesCleared) {
+            radius = radius * 2;
+            setTimeout(revealCircle, 50); // Adjust the speed of the reveal here
+        }
+    }
+
+    revealCircle();
+}
+
+
+
 const MonsterType = Object.freeze({
     "BASILISK": 0,
     "CHIMERA": 1,
@@ -1661,7 +1770,7 @@ const Attacks = {
             let dy = Math.floor(Math.random() * 7) - 3; // -3 to 3
             let newX = target.x + dx;
             let newY = target.y + dy;
-            if (newX >= 0 && newY >= 0 && newX < globalVars.CANVAS_COLS && newY < globalVars.CANVAS_ROWS && floorMap[newY][newX].value === 157) {
+            if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
                 let fire = new Fire(newX, newY, monster.scheduler, '0xFF0000');
                 monster.scheduler.add(fire, true);
             }
@@ -1714,7 +1823,6 @@ class Monster extends Actor{
         this.bleeding = false;
         this.name = ""; // To be set by a monster-specific code.
         this.description = ""; // To be set by a monster-specific code.
-
         // An array of attacks a monster can perform. Can be set by a monster-specific code.
         this.attacks = []; 
         this.spriteFlip = {
@@ -1764,7 +1872,7 @@ class Monster extends Actor{
                     if(dx === 0 && dy === 0) continue;
                     let newX = this.x + dx;
                     let newY = this.y + dy;
-                    if(newX >= 0 && newY >= 0 && newX < globalVars.CANVAS_COLS && newY < globalVars.CANVAS_ROWS && floorMap[newY][newX].value === 157) {
+                    if(newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && floorMap[newY][newX].value === 157) {
                         adjacentTiles.push({x: newX, y: newY});
                     }
                 }
@@ -1807,6 +1915,74 @@ class Monster extends Actor{
                 console.log("Skeleton couldn't find an unblocked path to move randomly.");
             }
         };
+        this.moveRandomlyAndMine = function() {
+            let moved = false;
+        
+            while (!moved) {
+                let adjacentTiles = this.getAdjacentTiles();
+        
+                // Filter out tiles that have a locked door or are blocked.
+                adjacentTiles = adjacentTiles.filter(tile => {
+                    let door = Door.totalDoors().find(door => door.x === tile.x && door.y === tile.y);
+                    return !door || !this.isLockedDoor(door); // Allow open doors or tiles without doors
+                }).filter(tile => !this.isBlocked(tile.x, tile.y)); // Ensure the tile is not blocked
+        
+                if (adjacentTiles.length > 0) {
+                    let randomTile = adjacentTiles[Math.floor(Math.random() * adjacentTiles.length)];
+                    this.x = randomTile.x;
+                    this.y = randomTile.y;
+        
+                    // Open any unlocked door on the tile.
+                    let doorOnTile = Door.totalDoors().find(door => door.x === this.x && door.y === this.y);
+                    if (doorOnTile && !doorOnTile.isLocked && !doorOnTile.isOpen) {
+                        doorOnTile.open();
+                        this.messageList.addMessage("You hear a crashing noise.");
+                    }
+        
+                    this.updateSpritePosition();
+                    this.checkForItems(this.x, this.y);
+                    moved = true; // Mark as moved
+        
+                    this.handleTileEffects(this.x, this.y);
+        
+                    // After moving, attempt to mine adjacent walls
+                    let directions = ['up', 'down', 'left', 'right'];
+                    for (let direction of directions) {
+                        let [dx, dy] = this.getDeltaXY(direction);
+                        let targetX = this.x + dx;
+                        let targetY = this.y + dy;
+                        if (!this.isOutOfBounds(targetX, targetY) && wallMap[targetY][targetX]?.value !== null && backgroundMap[targetY][targetX]?.value !== 216) {
+                            // Remove the wall sprite
+                            gameContainer.removeChild(wallMap[targetY][targetX].sprite);
+                            if (wallMap[targetY][targetX]?.value) {
+                                wallMap[targetY][targetX].value = null; // Remove wall from the map
+                            }
+                            // Create a floor at the mined location
+                            createRoughFloor(targetX, targetY);
+        
+                            this.messageList.addMessage("A " + this.name + " chisels away at a wall.");
+                            playBumpSound();
+        
+                            // Random chance to place Uranium
+                            if (Math.random() < 1/8) {
+                                let uranium = new Uranium(targetX, targetY, this.scheduler, '0xADFF2F');
+                                this.scheduler.add(uranium, true); // Add Uranium to the scheduler
+                                this.messageList.addMessage("The robot found Uranium!");
+                            }
+        
+                            break; // Break after one successful mine action
+                        } else {
+                            playBumpSound();
+                        }
+                    }
+                } else {
+                    console.log(this.name + " couldn't find an unblocked path to move randomly.");
+                    moved = true; // Exit loop if no move is possible
+                }
+            }
+        };
+        
+        
         
         switch(type) {
             case MonsterType.BASILISK:
@@ -1891,6 +2067,8 @@ class Monster extends Actor{
                 this.name = "Skeleton";
                 this.upright = true;
                 this.attacks = ["CLAW"];
+                this.speed = 1;
+                this.actFrequency = 2;
                 this.isFlammable = true;
                 this.firstTilePosition = {x: 8, y: 7};
                 this.secondTilePosition = {x: 9, y: 7};
@@ -1915,6 +2093,17 @@ class Monster extends Actor{
                     }
                 };
                 break;
+                case MonsterType.ROBOT:
+                    this.name = "Robot";
+                    this.upright = true;
+                    this.isFlammable = false;
+                    this.firstTilePosition = {x: 10, y: 5};
+                    this.secondTilePosition = {x: 13, y: 6};
+                    this.act = function() {
+                        this.moveRandomlyAndMine();
+                    };
+                    break;
+     
             default:
                 this.name = monster;
                 this.upright = true;
@@ -2007,12 +2196,24 @@ class Monster extends Actor{
             this.y = nextY;
             this.handleTileEffects(this.x, this.y);
             this.updateSpritePosition();
+        } else {
+            // If the target is blocked, move randomly
+            this.moveRandomly();
         }
     };
     isOutOfBounds(x, y) {
-        return x < 0 || y < 0 || x >= globalVars.CANVAS_COLS || y >= globalVars.CANVAS_ROWS;
+        return x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT;
     }
-
+    getDeltaXY(direction) {
+        let dx = 0, dy = 0;
+        switch (direction) {
+            case 'up': dy = -1; break;
+            case 'down': dy = 1; break;
+            case 'left': dx = -1; break;
+            case 'right': dx = 1; break;
+        }
+        return [dx, dy];
+    }
     isWalkableTile(x, y) {
         // Assuming floorMap is a globally accessible structure
         return floorMap[y][x].value === 157; // Only floor tiles are walkable
@@ -2091,8 +2292,8 @@ class Monster extends Actor{
             dripBlood(this.x, this.y, this.bloodColor);
         }
         this.getTargetsInRange();
-
-        if(this.target) {
+    
+        if (this.target) {
             if (this.canSeeTarget(this.target)) {
                 this.sighted = true;
                 for (let attackKey of this.attacks) {
@@ -2103,24 +2304,22 @@ class Monster extends Actor{
             }
             this.target = null;
         }
-
+    
         if (this.sighted) {
             this.followTarget();
-        } else if(this.turnsWaited >= this.actFrequency) {
-            for(let i = 0; i < this.speed; i++) {
+        } else if (this.turnsWaited >= this.actFrequency) {
+            for (let i = 0; i < this.speed; i++) {
                 this.moveRandomly();
             }
             this.turnsWaited = 0;
         } else {
             this.turnsWaited++;
         }
-
-        this.applyDamageEffects();  // Apply effects like burning from fire tiles
-        this.engine.unlock();       // Unlock the engine after actions
+    
+        this.applyDamageEffects(); // Apply effects like burning from fire tiles
+        this.engine.unlock(); // Unlock the engine after actions
     }
-    decideNextMove() {
-        //logic for move decision here?
-    }
+    
 }
 
 Monster.prototype.findClosestPlayer = function() {
@@ -2138,6 +2337,7 @@ Monster.prototype.findClosestPlayer = function() {
     return closest;
 };
 
+// Ensure Monster can see the target through direct line of sight
 Monster.prototype.canSeeTarget = function(target) {
     // Assume line of sight checking function exists; you may need to implement this based on your game's logic
     return true; // Simplified for example
@@ -2336,7 +2536,7 @@ class Fire extends Entity {
                 let newX = this.x + direction[0];
                 let newY = this.y + direction[1];
                 // Check if the new spot is valid and not already on fire
-                if (newX >= 0 && newY >= 0 && newX < globalVars.CANVAS_COLS && newY < globalVars.CANVAS_ROWS && 
+                if (newX >= 0 && newY >= 0 && newX < MAP_WIDTH && newY < MAP_HEIGHT && 
                     floorMap[newY][newX].value === 157 && 
                     (!atmosphereMap[newY][newX] || atmosphereMap[newY][newX].value !== 300)) {
                     
@@ -2388,7 +2588,7 @@ class Fire extends Entity {
             let item = objectMap[y][x].item;
             if (item && item.sprite && item.sprite.texture) {
                 item.destroy();
-                messageList.addMessage(`The ${item.name} dissapears in flames.`);
+                messageList.addMessage(`The ${item.name} disappears in flames.`);
                //console.log("Destroyed flammable item");
             }
         }
@@ -2456,7 +2656,7 @@ class Kudzu extends Entity {
 
     act() {
         // 1% chance to turn into a flower
-        if (!this.hasFlower && objectMap[this.y][this.x] == "" && Math.random() < 0.01) {
+        if (!this.hasFlower && Math.random() < 0.01) {
             this.addFlower();
             return;
         }
@@ -2473,7 +2673,7 @@ class Kudzu extends Entity {
             const availableTiles = directions
                 .map(d => ({ x: this.x + d[0], y: this.y + d[1], direction: d[2] }))
                 .filter(t => 
-                    t.x >= 0 && t.x < globalVars.CANVAS_COLS && t.y >= 0 && t.y < globalVars.CANVAS_ROWS &&
+                    t.x >= 0 && t.x < MAP_WIDTH && t.y >= 0 && t.y < MAP_HEIGHT &&
                     floorMap[t.y][t.x].value === 157 && // Walkable tile
                     doorMap[t.y][t.x].value == null && // Not a door
                     objectMap[t.y][t.x]?.item?.value == null &&// No objects
@@ -2528,6 +2728,80 @@ class Kudzu extends Entity {
     
 }
 
+class Uranium extends Entity {
+    constructor(x, y, scheduler, color = '0xE0FF00') {
+        super(x, y, scheduler, [], 2, growthMap); 
+        this._tileIndex = {x: 8, y: 0};
+        this.name = "Uranium";
+        this.color = color;
+        this.isFlammable = false;
+
+        // Create the sprite
+        this.spriteData = createSprite(this.x, this.y, this._tileIndex, growthMap);
+        this.sprite = this.spriteData.sprite; // Assign the created sprite to this instance
+
+        // Set sprite properties
+        this.sprite.tint = this.color;  // apply the tint
+        this.sprite.blendMode = PIXI.BLEND_MODES.MULTIPLY;
+
+        // Updating the atmosphere map to include this Uranium instance
+        if (!atmosphereMap[this.y]) {
+            atmosphereMap[this.y] = [];
+        }
+        atmosphereMap[this.y][this.x] = { value: 400, sprite: this.sprite }; // Use a unique value for Uranium
+
+        // Specific tween for the Uranium instance
+        let colorVariation = generateColorVariation(color, 0xEDFFAC); 
+        this.tween = new createjs.Tween.get(this.sprite)
+            .to({ tint: colorVariation.lighter }, 20) 
+            .wait(20)
+            .to({ tint: color }, 100)
+            .wait(100)
+            .to({ tint: colorVariation.darker }, 10)
+            .wait(10)
+            .call(() => {
+                this.tween.gotoAndPlay(0); // Restart the animation from the beginning
+            });
+    }
+
+    act() {
+        // Check adjacent tiles for the player and potentially harm them
+        let directions = [
+            [-1, 0], // left
+            [1, 0], // right
+            [0, -1], // up
+            [0, 1] // down
+        ];
+        for (let direction of directions) {
+            let newX = this.x + direction[0];
+            let newY = this.y + direction[1];
+            if (!this.isOutOfBounds(newX, newY) && player.x === newX && player.y === newY) {
+                if (Math.random() < 1 / 3) { // 1 in 3 chance to harm the player
+                    player.takeDamage(1);
+                    this.messageList.addMessage("You feel sick.");
+                }
+            }
+        }
+    }
+
+    isOutOfBounds(x, y) {
+        return x < 0 || y < 0 || x >= MAP_WIDTH || y >= MAP_HEIGHT;
+    }
+}
+
+
+
+function generateColorVariation(baseColor, variation) {
+    const lighter = (baseColor & 0xFFFFFF) + (variation & 0xFFFFFF);
+    const darker = (baseColor & 0xFFFFFF) - (variation & 0xFFFFFF);
+    return {
+        lighter: lighter > 0xFFFFFF ? 0xFFFFFF : lighter,
+        darker: darker < 0 ? 0 : darker
+    };
+}
+
+
+
 
 
 
@@ -2547,7 +2821,7 @@ const ItemType = Object.freeze({
     "ARROW": 3,
     "FLOWER": 4,
     "CRADLE": 5,
-    "MATTOCK": 6,
+    "MATTOCK": 6
 });
 
 class Item {
@@ -2593,7 +2867,7 @@ class Item {
             case ItemType.CRADLE:
                 this._name = 'Cradle';
                 this._type = type;
-                this._tileIndex = {x: 8, y: 0};
+                this._tileIndex = {x: 14, y: 10};
                 this._objectNumber = 3;
                 this.colorValue = colorValue;
                 break;
@@ -2883,7 +3157,7 @@ class Exit {
             // Positioning for flipping logic
             if (spriteInfo.flipH) {
                 sprite.scale.x *= -1;
-                sprite.x += TILE_WIDTH * SCALE_FACTOR;
+                sprite.x += globalVars.TILE_WIDTH * SCALE_FACTOR;
             }
     
             if (spriteInfo.flipV) {
@@ -2967,9 +3241,8 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
         globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
 
     let sprite = new PIXI.Sprite(texture);
-    sprite.scale.set(SCALE_FACTOR);
-    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR;
-    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
+    sprite.x = Math.floor(x * globalVars.TILE_WIDTH);
+    sprite.y = Math.floor(y * globalVars.TILE_HEIGHT);
     if (tint) {
         sprite.tint = tint;
     }
@@ -3025,86 +3298,6 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
     return layer[y][x]; 
 }
 
-function createSprite(x, y, index, layer, value = null, overlay = false, tint = null) {
-    if (!layer[y]) {
-        layer[y] = [];
-    }
-    let container;
-    if (layer === uiMaskMap){
-        container = uiMaskContainer;
-    } else if (layer === uiMap || layer === overlayMap) {
-        container = uiContainer;
-    } else {
-        container = gameContainer;
-    }
-    if (layer?.[y]?.[x]?.sprite) {
-        container.removeChild(layer[y][x].sprite);
-    }
-
-    let baseTexture = PIXI.BaseTexture.from(PIXI.Loader.shared.resources.tiles.url);
-    let texture = new PIXI.Texture(baseTexture, new PIXI.Rectangle(
-        index.x * globalVars.TILE_WIDTH,
-        index.y * globalVars.TILE_HEIGHT,
-        globalVars.TILE_WIDTH, globalVars.TILE_HEIGHT));
-
-    let sprite = new PIXI.Sprite(texture);
-    sprite.scale.set(SCALE_FACTOR);
-    sprite.x = x * globalVars.TILE_WIDTH * SCALE_FACTOR;
-    sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR;
-    if (tint) {
-        sprite.tint = tint;
-    }
-    // Set initial opacity to 1
-    if (layer === wallMap || layer === uiMap) {
-        sprite.alpha = 1;
-    }
-    if (layer === atmosphereMap){
-        sprite.zIndex = 3.9;
-    }
-    if (layer === wallMap) {
-        sprite.zIndex = 3;
-
-        // Remove sprites on layers beneath the wall layer if they exist at the same position
-        if (wallMap?.[y]?.[x]?.sprite) {
-            container.removeChild(wallMap[y][x].sprite);
-            wallMap[y][x].sprite = null;
-        }
-        if (floorMap?.[y]?.[x]?.sprite) {
-            container.removeChild(floorMap[y][x].sprite);
-            floorMap[y][x].sprite = null;
-        }
-        if (backgroundMap?.[y]?.[x]?.sprite) {
-            container.removeChild(backgroundMap[y][x].sprite);
-            backgroundMap[y][x].sprite = null;
-        }
-    } else if (layer === objectMap || layer === doorMap || layer === growthMap) {
-        sprite.zIndex = 2; // Set zIndex for objectMap
-    } else if (layer === floorMap) {
-        sprite.zIndex = 1;
-        
-        // Remove sprites on the background layer if they exist at the same position
-        if (backgroundMap?.[y]?.[x]?.sprite) {
-            container.removeChild(backgroundMap[y][x].sprite);         
-        }
-    } else if (layer === bloodMap) { 
-        sprite.zIndex = 1.1;
-    }
-
-
-    container.addChild(sprite);
-
-    let existingValue = layer[y][x] ? layer[y][x].value : null;
-    layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
-    // Update zIndex for objectMap based on y position compared to walls
-    if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
-        if (y * globalVars.TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
-            sprite.zIndex = 4; // Object is behind the wall
-        }
-    }
-    
-    //return sprite;
-    return layer[y][x]; 
-}
 function getComplimentaryColor(color) {
     // Extract the RGB components from the color
     const r = (color >> 16) & 0xFF;
@@ -3164,8 +3357,6 @@ function createChasmWall(x, y) {
     sprite.y = y * globalVars.TILE_HEIGHT * SCALE_FACTOR + globalVars.TILE_HEIGHT * SCALE_FACTOR / 2;
 }
 
-
-
 function createFloor(x, y) {
     createSprite(x, y, {x: 19, y: 6}, floorMap, 157);
 }
@@ -3179,7 +3370,6 @@ function createRoughFloor(x, y) {
     const chosenSprite = possibleSprites[randomIndex];
     createSprite(x, y, chosenSprite, floorMap, 157);
 }
-
 
 function createWall(x, y) {
     createSprite(x, y, {x: 22, y: 8}, floorMap, 177); // footprint
@@ -3195,11 +3385,10 @@ function createVerticalWall(x, y) {
     createSprite(x, y - 2, {x: 16, y: 5}, wallMap, 131); // top
 }
 
-
 // dungeon generator
 function dungeonGeneration() {
     // Use rot.js to create a uniform dungeon map
-    dungeon = new ROT.Map.Uniform(globalVars.CANVAS_COLS, globalVars.CANVAS_ROWS);
+    dungeon = new ROT.Map.Uniform(MAP_WIDTH, MAP_HEIGHT);
     
     // This callback function will be executed for every generated map cell
     const callback = (x, y, value) => {
@@ -3252,7 +3441,6 @@ async function addDoors() {
     return treasureRoom;
 }
 
-
 function isTileInTreasureRoom(tile, treasureRoom) {
     if (!currentTreasureRoom) {
         return false;
@@ -3262,15 +3450,15 @@ function isTileInTreasureRoom(tile, treasureRoom) {
            tile.y >= currentTreasureRoom.getTop() && tile.y <= currentTreasureRoom.getBottom();
 }
 
-
 function isTileWithDoor(tile, doorMap) {
     // Check if there's any door at the given tile's coordinates
     return doorMap[tile.y][tile.x] !== null && doorMap[tile.y][tile.x] !== undefined;
 }
+
 function placeKeyForDoor(door, doorName) {
     let walkableTiles = [];
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
             if (floorMap[y][x].value === 157) {
                 walkableTiles.push({x: x, y: y});
             }
@@ -3284,8 +3472,8 @@ function placeKeyForDoor(door, doorName) {
 }
 
 function addFloorsAndVoid() {
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
             if (floorMap[y][x] === 157) {
                 createFloor(x, y);
             } else if (backgroundMap[y][x] === 216) {
@@ -3297,9 +3485,9 @@ function addFloorsAndVoid() {
 
 function isAdjacentTo(map, x, y, tileValue) {
     const isAbove = y > 1 && map[y - 1][x].value === tileValue; // Check Up
-    const isBelow = y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x].value === tileValue; // Check Down
+    const isBelow = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue; // Check Down
     const isLeft = x > 1 && map[y][x - 1].value === tileValue; // Check Left
-    const isRight = x < globalVars.CANVAS_COLS - 1 && map[y][x + 1].value === tileValue; // Check Right
+    const isRight = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue; // Check Right
 
     return isAbove || isBelow || isLeft || isRight;
 }
@@ -3317,7 +3505,7 @@ function isThreeAbove(map, x, y, tileValue) {
 }
 
 function isBelow(map, x, y, tileValue) {
-    return y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x].value === tileValue;
+    return y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
 }
 
 
@@ -3328,12 +3516,12 @@ function hasVerticalTilesOnSide(map, x, y, tileValue, isLeftSide) {
         hasVerticalTiles = x > 0 &&
             (y > 0 && map[y - 1][x - 1].value === tileValue) && // Top Left
             (map[y][x - 1].value === tileValue) && // Middle Left
-            (y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x - 1].value === tileValue); // Lower Left
+            (y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue); // Lower Left
     } else {
-        hasVerticalTiles = x < globalVars.CANVAS_COLS - 1 &&
+        hasVerticalTiles = x < MAP_WIDTH - 1 &&
             (y > 0 && map[y - 1][x + 1].value === tileValue) && // Top Right
             (map[y][x + 1].value === tileValue) && // Middle Right
-            (y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x + 1].value === tileValue); // Lower Right
+            (y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue); // Lower Right
     }
 
     // Log the values for debugging purposes
@@ -3351,13 +3539,13 @@ function behindShadowEdge(map, x, y) {
 }
 
 function isOnRight(map, x, y, tileValue) {
-    return x < globalVars.CANVAS_COLS - 1 && map[y][x + 1].value === tileValue;
+    return x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
 }
 
 function isInMidAndLowerRight(map, x, y, tileValue) {
-    const isUpperRight = x < globalVars.CANVAS_COLS - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
-    const isMidRight = x < globalVars.CANVAS_COLS - 1 && map[y][x + 1].value === tileValue;
-    const isLowerRight = x < globalVars.CANVAS_COLS - 1 && y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x + 1].value === tileValue;
+    const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
+    const isMidRight = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
+    const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
 
     return isMidRight && isLowerRight && isUpperRight;
 }
@@ -3365,7 +3553,7 @@ function isInMidAndLowerRight(map, x, y, tileValue) {
 function isInMidAndLowerLeft(map, x, y, tileValue) {
     const isUpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === tileValue;
     const isMidLeft = x > 0 && map[y][x - 1].value === tileValue;
-    const isLowerLeft = x > 0 && y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x - 1].value === tileValue;
+    const isLowerLeft = x > 0 && y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue;
 
     return !isUpperLeft && isMidLeft && isLowerLeft;
 }
@@ -3373,8 +3561,8 @@ function isInMidAndLowerLeft(map, x, y, tileValue) {
 function isOnlyUpperLeftCornerTile(map, x, y, tileValue) {
     const UpperLeft = x > 0 && y > 1 && map[y - 1][x - 1].value === tileValue;
     const left = x > 0 && map[y][x - 1].value === tileValue;
-    const below = y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x].value === tileValue;
-    const right = x < globalVars.CANVAS_COLS - 1 && map[y][x + 1].value === tileValue;
+    const below = y < MAP_HEIGHT - 1 && map[y + 1][x].value === tileValue;
+    const right = x < MAP_WIDTH - 1 && map[y][x + 1].value === tileValue;
 
     return left && UpperLeft && !below && !right;
 }
@@ -3393,7 +3581,7 @@ function isUpperRightCornerTile(map, x, y, tileValue) {
     // Check if y - 1 is within bounds
     if (y > 0) {
         // Check if x - 1 is within bounds, and map[y - 1][x + 1] exists with a 'value' property
-        const isUpperRight = x < globalVars.CANVAS_COLS - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
+        const isUpperRight = x < MAP_WIDTH - 1 && y > 1 && map[y - 1][x + 1].value === tileValue;
         return isUpperRight;
     }
     return false;
@@ -3404,18 +3592,17 @@ function isLowerLeftCornerTile(map, x, y, tileValue) {
     // Check if y + 1 is within bounds
     if (y < map.length - 1) {
         // Check if x - 1 is within bounds
-        const isLowerLeft = x > 0 && y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x - 1].value === tileValue;
+        const isLowerLeft = x > 0 && y < MAP_HEIGHT - 1 && map[y + 1][x - 1].value === tileValue;
         return isLowerLeft;
     }
     return false;
 }
 
-
 function isLowerRightCornerTile(map, x, y, tileValue) {
     // Check if y + 1 is within bounds
     if (y < map.length - 1) {
         // Check if x + 1 is within bounds
-        const isLowerRight = x < globalVars.CANVAS_COLS - 1 && y < globalVars.CANVAS_ROWS - 1 && map[y + 1][x + 1].value === tileValue;
+        const isLowerRight = x < MAP_WIDTH - 1 && y < MAP_HEIGHT - 1 && map[y + 1][x + 1].value === tileValue;
         return isLowerRight;
     }
     return false;
@@ -3448,8 +3635,8 @@ function line(p0, p1) {
 
 function addBaseAndShadows() {
     //console.log("adding shadows");
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile is a floor
             if (backgroundMap[y][x].value === 216 && floorMap[y][x].value !== 177 && wallMap[y][x].value !== 177 && wallMap[y][x].value !== 131) { 
                 if (!isUpperLeftCornerTile(floorMap, x,y,177) && isAbove(floorMap, x, y, 177) ) {
@@ -3464,7 +3651,7 @@ function addBaseAndShadows() {
 
                 if ((isOnLeft(backgroundMap,x,y,127)) && wallMap[y][x].value !== 177 && floorMap[y][x].value !== 177  && (isAbove(floorMap,x,y,177) || isAbove(backgroundMap,x,y,177))){
                     let xPos = x; // Start checking from the tile to the right of the current tile
-                    while (y > 1 && xPos < globalVars.CANVAS_COLS -1 && floorMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 131 && backgroundMap[y][xPos].value === 216 && (isAbove(floorMap,xPos,y,177) || isAbove(backgroundMap,xPos,y,177))) {
+                    while (y > 1 && xPos < MAP_WIDTH -1 && floorMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 177 && wallMap[y][xPos].value !== 131 && backgroundMap[y][xPos].value === 216 && (isAbove(floorMap,xPos,y,177) || isAbove(backgroundMap,xPos,y,177))) {
                         createSprite(xPos, y, {x: 16, y: 7},backgroundMap, 177);
                         createChasmWall(xPos,y);
                         xPos++; // Move to the next tile to the right
@@ -3479,9 +3666,9 @@ function addBaseAndShadows() {
 function evaluateMapAndCreateWalls() {
     // Loop through each row
     addDoors(dungeon);
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
         // Loop through each column
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
             // Check if the current tile has a value of 216
             if (backgroundMap[y][x].value === 216) {
                 //console.log("I found a void at (" + x + ", " + y + ")");
@@ -3517,12 +3704,12 @@ function evaluateMapAndCreateWalls() {
 
 // a class for screen text
 class UIBox {
-    constructor(textBuffer = [""], width = globalVars.CANVAS_COLS, height = null, hidden = false) {
+    constructor(textBuffer = [""], width = MAP_WIDTH, height = null, hidden = false) {
         this.textBuffer = textBuffer;
         this.width = width;
         this.height = height || textBuffer.length;
         this.hidden = hidden;
-        this.height = Math.min(this.height, globalVars.CANVAS_ROWS);
+        this.height = Math.min(this.height, MAP_HEIGHT);
         this.originalTiles = [];
     }
     
@@ -3549,9 +3736,9 @@ class UIBox {
         if (this.hidden) return; // If box is hidden, don't draw it
         //const WHITE_TILE = { x: 21, y: 7};
 
-        // Adjust box height based on number of lines in textBuffer, but not more than globalVars.CANVAS_ROWS
-        if (this.height == null){this.height = Math.min(this.textBuffer.length, globalVars.CANVAS_ROWS );}
-        if (this.width == null){this.width = globalVars.CANVAS_COLS};
+        // Adjust box height based on number of lines in textBuffer, but not more than MAP_HEIGHT
+        if (this.height == null){this.height = Math.min(this.textBuffer.length, MAP_HEIGHT );}
+        if (this.width == null){this.width = MAP_WIDTH};
 
         this.maskBox();
         createSprite(0, 0, BOX_TOP_LEFT,uiMap, 214);
@@ -3588,10 +3775,10 @@ class UIBox {
     charToSpriteLocation(char) {
         let charCode = char.charCodeAt(0);
         let tileNumber = charCode; 
-        let spriteColumn = tileNumber % SPRITESHEET_COLUMNS;
-        let spriteRow = Math.floor(tileNumber / SPRITESHEET_COLUMNS);
+        let spriteColumn = tileNumber % globalVars.SPRITESHEET_COLS;
+        let spriteRow = Math.floor(tileNumber / globalVars.SPRITESHEET_COLS);
         
-        if(spriteColumn >= SPRITESHEET_COLUMNS) {
+        if(spriteColumn >= globalVars.SPRITESHEET_COLS) {
             spriteColumn = 0;
             spriteRow++;
         }
@@ -3709,6 +3896,7 @@ class UIBox {
 }
 // This function will run when the spritesheet has finished loading
 async function setup() {
+
     dungeonGeneration();
     addFloorsAndVoid();
     evaluateMapAndCreateWalls();
@@ -3718,8 +3906,8 @@ async function setup() {
     let currentLevel = new Level();
     levels.push(currentLevel);
 
-    for (let y = 0; y < globalVars.CANVAS_ROWS; y++) {
-        for (let x = 0; x < globalVars.CANVAS_COLS; x++) {
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
             if (floorMap[y][x].value === 157) {
                 walkableTiles.push({x: x, y: y});
                 let tile = {x: x, y: y};
@@ -3743,6 +3931,8 @@ async function setup() {
     let randomTile6 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile7 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile8 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile9 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let randomTile10 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     //add exits, they don't work yet
    /*  let downExitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let upExitTile;
@@ -3763,12 +3953,14 @@ async function setup() {
     
     
     
-    messageList = new UIBox(["Welcome to the Dungeon of Doom!"], globalVars.CANVAS_COLS, 5);
-    inspector = new UIBox([], 30, 10, true);
+    messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5);
+    inspector = new UIBox([], 30, 15, true);
+
 
     // And handle them individually
     messageList.showBox();
     messageList.showUIContainer();
+    messageList.addMessage(`Press 'i' for key commands.`);
 
     PIXI.Loader.shared.onComplete.add(() => {
         for (let i = 0; i < 7; i++) { // assuming you have 4 frames of fire animation
@@ -3781,9 +3973,12 @@ async function setup() {
         engine = new ROT.Engine(scheduler);
         player = new Player(PlayerType.HUMAN, randomTile.x, randomTile.y, scheduler, engine, messageList, inspector);
         createPlayerSprite(player);
+        keyHoleZoom(player);
         scheduler.add(player, true); // the player takes turns
 
-        
+        /* player2 = new Player(PlayerType.ROBOT, randomTile5.x, randomTile5.y, scheduler, engine, messageList, inspector);
+        createPlayerSprite(player2);
+        scheduler.add(player2, true); */
 
         let basilisk = new Monster(MonsterType.BASILISK, randomTile2.x, randomTile2.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(basilisk);
@@ -3797,10 +3992,13 @@ async function setup() {
         let skeleton3 = new Monster(MonsterType.SKELETON, randomTile8.x, randomTile8.y, scheduler, engine, messageList, inspector);
         createMonsterSprite(skeleton3);
         scheduler.add(skeleton3, true);
+        let robot1 = new Monster(MonsterType.ROBOT, randomTile9.x, randomTile9.y, scheduler, engine, messageList, inspector);
+        createMonsterSprite(robot1);
+        scheduler.add(robot1, true);
         new Item(ItemType.BOW,randomTile3.x, randomTile3.y, 0xFFFFFF, 1);
         new Item(ItemType.ARROW,randomTile4.x, randomTile4.y, 0xFFFFFF, 3);
-        new Item(ItemType.MATTOCK,randomTile5.x, randomTile5.y, 0xFFFFFF, 4);
-        
+        //new Item(ItemType.CRADLE,randomTile5.x, randomTile5.y, 0xFFFF00, 2);
+        new Item(ItemType.MATTOCK,randomTile10.x, randomTile10.y, 0x00FF00, 2);
         /* let chimera = new Monster(MonsterType.CHIMERA, randomTile3.x, randomTile3.y, scheduler, engine, messageList);
         createMonsterSprite(chimera);
         scheduler.add(chimera, true); */
@@ -3823,3 +4021,4 @@ async function setup() {
     });
 
 }
+
