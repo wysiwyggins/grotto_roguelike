@@ -26,13 +26,6 @@ h1, h2 {
   font-size: 2em;
 }
 
-canvas {
-  width: 1200px;
-  height: 752px;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
-}
 
 @font-face {
   font-family: "courier_prime_coderegular";
@@ -134,4 +127,5 @@ canvas {
   display: block;
   margin-left: auto;
   margin-right: auto;
-}/*# sourceMappingURL=main.css.map */
+}
+/*# sourceMappingURL=main.css.map */
