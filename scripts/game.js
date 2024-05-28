@@ -599,17 +599,20 @@ class Player extends Actor{
         return false;
     }
     handleClick(event) {
-        // prevent default behavior of the event
+        // Prevent default behavior of the event
         event.preventDefault();
-
-        // calculate tile coordinates from pixel coordinates
-        // use relative positions since we center the canvas with CSS
-        let relativeX = event.clientX - rect.left;
-        let relativeY = event.clientY - rect.top;
-
-        let x = Math.floor(relativeX / (globalVars.TILE_WIDTH * SCALE_FACTOR));
-        let y = Math.floor(relativeY / (globalVars.TILE_HEIGHT * SCALE_FACTOR));
-
+    
+        // Get canvas bounding rectangle
+        const rect = app.view.getBoundingClientRect();
+    
+        // Calculate tile coordinates from pixel coordinates
+        // Use devicePixelRatio to account for high-DPI screens
+        let relativeX = (event.clientX - rect.left) * devicePixelRatio;
+        let relativeY = (event.clientY - rect.top) * devicePixelRatio;
+    
+        let x = Math.floor(relativeX / TILE_WIDTH);
+        let y = Math.floor(relativeY / TILE_HEIGHT);
+    
         // If player is in targeting mode
         if (this.isTargeting) {
             this.performArrowAttack(x, y);
@@ -618,13 +621,14 @@ class Player extends Actor{
         } 
         // If the player is not in targeting mode
         else {
-            // make sure the click is inside the map
+            // Make sure the click is inside the map
             if (x >= 0 && x < MAP_WIDTH && y >= 0 && y < MAP_HEIGHT) {
                 this.messageList.addMessage("Walking.");
                 this.moveTo(x, y);
             }
         }
     }
+    
     checkUIBoxes() {
         if (this.y <= this.messageList.height + 1 && this.messageList.position === "top") {
             console.log("Player is near the message list.");
