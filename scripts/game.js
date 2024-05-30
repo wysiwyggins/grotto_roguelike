@@ -2880,7 +2880,7 @@ class Item {
         this.sprite.interactive = true;
         this.sprite.on('mouseover', () => {
             messageList.hideBox(); 
-            showInspectorInfo();
+            this.showInspectorInfo();
             inspector.showBox();  
             inspector.render();  
         });
