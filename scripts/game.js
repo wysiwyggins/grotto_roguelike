@@ -3664,6 +3664,7 @@ class UIBox {
     drawUIBox() {
         if (this.hidden) return;
 
+        console.log('Drawing UIBox');
         this.maskBox();
         createSprite(0, this.yOffset, BOX_TOP_LEFT, uiMap, 214);
         for (let x = 1; x < this.width - 1; x++) {
@@ -3671,12 +3672,15 @@ class UIBox {
         }
         createSprite(this.width - 1, this.yOffset, BOX_TOP_RIGHT, uiMap, 191);
 
+        console.log('Current textBuffer before drawing:', this.textBuffer);
+
         for (let y = 1; y < this.height; y++) {
             createSprite(0, y + this.yOffset, BOX_VERTICAL, uiMap, 179);
             createSprite(this.width - 1, y + this.yOffset, BOX_VERTICAL, uiMap, 179);
 
             let message = this.textBuffer[y - 1];
             if (message) {
+                console.log(`Drawing message at line ${y - 1}: ${message}`);
                 for (let i = 0; i < message.length; i++) {
                     let spriteLocation = this.charToSpriteLocation(message.charAt(i));
                     createSprite(i + 1, y + this.yOffset, spriteLocation, uiMap, message.charCodeAt(i));
@@ -3722,6 +3726,7 @@ class UIBox {
     }
 
     render() {
+        console.log('Rendering UIBox');
         this.clearBox();
         this.drawUIBox();
     }
@@ -3771,6 +3776,13 @@ class UIBox {
         }
         console.log(`Adding message: ${message}`);
         this.textBuffer.push(message);
+
+        // Scroll off old messages if textBuffer exceeds height
+        while (this.textBuffer.length > this.height - 1) {
+            this.textBuffer.shift();
+        }
+
+        console.log('Current textBuffer:', this.textBuffer);
         this.render();
     }
 
@@ -3842,7 +3854,7 @@ async function setup() {
     let randomTile9 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile10 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     
-    messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 5, false, "top");
+    messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 8, false, "top");
     inspector = new UIBox([], 30, 15, true, "top");
 
     messageList.showBox();
