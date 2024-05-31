@@ -294,48 +294,126 @@ let levels = [];
 // levels
 class Level {
     constructor() {
-        // Maps and other level-specific data.
+        // Initialize maps and other level-specific data
         this.backgroundMap = createEmptyMap();
         this.floorMap = createEmptyMap();
-        this.backgroundMap = createEmptyMap();
         this.objectMap = createEmptyMap();
         this.doorMap = createEmptyMap();
         this.wallMap = createEmptyMap();
         this.growthMap = createEmptyMap();
         this.atmosphereMap = createEmptyMap();
+        this.bloodMap = createEmptyMap();
+        this.uiMaskMap = createEmptyMap();
+        this.uiMap = createEmptyMap();
+        this.overlayMap = createEmptyMap();
+        
+        // Initialize entities and items
         this.activeEntities = [];
         this.activeItems = [];
+        
+        // Initialize exit positions
         this.upExitPosition = {x: 0, y: 0};
         this.downExitPosition = {x: 0, y: 0};
-
     }
-}
+    
+    // Method to reset maps and entities
+    resetLevel() {
+        this.backgroundMap = createEmptyMap();
+        this.floorMap = createEmptyMap();
+        this.objectMap = createEmptyMap();
+        this.doorMap = createEmptyMap();
+        this.wallMap = createEmptyMap();
+        this.growthMap = createEmptyMap();
+        this.atmosphereMap = createEmptyMap();
+        this.bloodMap = createEmptyMap();
+        this.uiMaskMap = createEmptyMap();
+        this.uiMap = createEmptyMap();
+        this.overlayMap = createEmptyMap();
+        this.activeEntities = [];
+        this.activeItems = [];
+    }
 
-function saveLevel(levelIndex) {
-    const saveState = levels[levelIndex];  // Assumes you've populated this level with data
-    const saveData = JSON.stringify(saveState);
-    localStorage.setItem(`levelSave_${levelIndex}`, saveData);
-}
+    // Method to save the current state of the level
+    saveLevelState() {
+        return {
+            backgroundMap: this.backgroundMap,
+            floorMap: this.floorMap,
+            objectMap: this.objectMap,
+            doorMap: this.doorMap,
+            wallMap: this.wallMap,
+            growthMap: this.growthMap,
+            atmosphereMap: this.atmosphereMap,
+            bloodMap: this.bloodMap,
+            uiMaskMap: this.uiMaskMap,
+            uiMap: this.uiMap,
+            overlayMap: this.overlayMap,
+            activeEntities: this.activeEntities,
+            activeItems: this.activeItems,
+            upExitPosition: this.upExitPosition,
+            downExitPosition: this.downExitPosition
+        };
+    }
 
-function loadLevel(levelIndex) {
-    const saveData = localStorage.getItem(`levelSave_${levelIndex}`);
-    if (!saveData) return;  // No saved level found
-
-    const saveState = JSON.parse(saveData);
-    levels[levelIndex] = Object.assign(new Level(), saveState);  // Restore level data
-}
-
-function goToNextLevel(currentLevelIndex) {
-    if (levels[currentLevelIndex + 1]) {
-        loadLevel(currentLevelIndex + 1);
-    } else {
-        let newLevel = generateNewLevel(); 
-        levels.push(newLevel);
+    // Method to load the saved state of the level
+    loadLevelState(savedState) {
+        this.backgroundMap = savedState.backgroundMap;
+        this.floorMap = savedState.floorMap;
+        this.objectMap = savedState.objectMap;
+        this.doorMap = savedState.doorMap;
+        this.wallMap = savedState.wallMap;
+        this.growthMap = savedState.growthMap;
+        this.atmosphereMap = savedState.atmosphereMap;
+        this.bloodMap = savedState.bloodMap;
+        this.uiMaskMap = savedState.uiMaskMap;
+        this.uiMap = savedState.uiMap;
+        this.overlayMap = savedState.overlayMap;
+        this.activeEntities = savedState.activeEntities;
+        this.activeItems = savedState.activeItems;
+        this.upExitPosition = savedState.upExitPosition;
+        this.downExitPosition = savedState.downExitPosition;
     }
 }
 
 function generateNewLevel() {
     console.log('Generating new level...');
+    
+    // Create a new level instance
+    let newLevel = new Level();
+    newLevel.resetLevel(); // Reset the level to clear any existing data
+
+    // Generate new dungeon layout
+    dungeonGeneration();
+    addFloorsAndVoid();
+    evaluateMapAndCreateWalls();
+    addBaseAndShadows();
+    
+    // Populate walkable and public tiles
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+            if (floorMap[y][x] === 157) {
+                walkableTiles.push({x: x, y: y});
+                let tile = {x: x, y: y};
+                if (!isTileInTreasureRoom(tile, currentTreasureRoom)) {
+                    publicTiles.push({x: tile.x, y: tile.y});
+                }
+            }
+        }
+    }
+    
+    // Place player on a random public tile
+    let randomTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    player.x = randomTile.x;
+    player.y = randomTile.y;
+    createPlayerSprite(player);
+    keyHoleZoom(player);
+
+    // Place a pit on a random public tile
+    let pitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    new Pit(pitTile.x, pitTile.y);
+
+    levels.push(newLevel); // Add new level to the levels array
+
+    return newLevel;
 }
 
 
@@ -392,7 +470,18 @@ class Actor {
         this.prevY = this.y;
         this.x = newTileX;
         this.y = newTileY;
+
+        // Check for pit and handle accordingly
+        if (objectMap[newTileY][newTileX] && objectMap[newTileY][newTileX].isPit) {
+            console.log(`Actor at (${newTileX}, ${newTileY}) stepped onto a pit.`);
+            this.onPit();
+        }
     }
+
+    onPit() {
+        this.die(); // Default behavior: die when moving onto a pit
+    }
+
 
     pickUpItem(item, x, y) {
         // Remove the item from the object map and the game container
@@ -706,6 +795,11 @@ class Player extends Actor{
         }
     }
 
+    onPit() {
+        goToNextLevel(currentLevelIndex);
+        console.log("Player fell into a pit.");
+    }
+
     findActorAt(x, y) {
         // Assuming all actors including monsters and NPCs are stored in a list
         for (let actor of Actor.allActors) {  // Replace 'actors' with actual list of actors
@@ -714,30 +808,6 @@ class Player extends Actor{
             }
         }
         return null;
-    }
-    
-    handleExit(exit) {
-        let currentLevelIndex = levels.indexOf(dungeon);
-        if (exit.type === "down") {
-            // Handle descending
-            goToNextLevel(currentLevelIndex);
-            let nextLevel = levels[currentLevelIndex + 1];
-            this.updatePosition(nextLevel.upExitPosition.x, nextLevel.upExitPosition.y);
-        } else if (exit.type === "up") {
-            // Handle ascending
-            if (currentLevelIndex > 0) {
-                loadLevel(currentLevelIndex - 1);
-                let previousLevel = levels[currentLevelIndex - 1];
-                this.updatePosition(previousLevel.downExitPosition.x, previousLevel.downExitPosition.y);
-            } else {
-                console.warn("Already at the topmost level!");
-                return;
-            }
-        }
-    
-        playExitSound();
-        this.checkUIBoxes();
-        this.updateSprites();
     }
     
     die(){
@@ -1537,6 +1607,16 @@ class Player extends Actor{
         
     }
     
+}
+
+function goToNextLevel(currentLevelIndex) {
+    currentLevelIndex++;
+    if (levels[currentLevelIndex]) {
+        loadLevel(currentLevelIndex);
+    } else {
+        let newLevel = generateNewLevel(); 
+        levels.push(newLevel);
+    }
 }
 
 function createPlayerSprite(player) {
@@ -2934,6 +3014,36 @@ class Item {
     }
 }
 
+class Pit {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.map = objectMap;
+        this._tileIndex = {x: 12, y: 5};
+        this.sprite = createSprite(x, y, this._tileIndex, this.map, 7);
+
+        this.sprite.sprite.interactive = true;
+        this.sprite.sprite.on('mouseover', () => {
+            messageList.hideBox(); 
+            this.showInspectorInfo();
+            inspector.showBox();  
+            inspector.render();  
+        });
+        this.sprite.sprite.on('mouseout', () => {
+            inspector.hideBox();
+            messageList.showBox();
+        });
+
+        this.map[y][x].isPit = true; // Add a property to indicate this is a pit
+    }
+
+    showInspectorInfo() {
+        inspector.clearMessages();
+        inspector.addMessage(`Pit to depth ${currentLevelIndex + 1}`);
+    }
+}
+
+
 function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
 }
@@ -3215,21 +3325,20 @@ function createSprite(x, y, index, layer, value = null, overlay = false, tint = 
         sprite.zIndex = 1.1;
     }
 
-
     container.addChild(sprite);
 
     let existingValue = layer[y][x] ? layer[y][x].value : null;
     layer[y][x] = {value: value !== null ? value : existingValue, sprite: sprite};
     // Update zIndex for objectMap based on y position compared to walls
-    if (layer === objectMap || layer === doorMap && wallMap?.[y]?.[x]?.sprite) {
-        if (y * globalVars.TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
+    if (layer === objectMap || layer === doorMap) {
+        if (wallMap[y] && wallMap[y][x] && y * globalVars.TILE_HEIGHT * SCALE_FACTOR < wallMap[y][x].sprite.y) {
             sprite.zIndex = 4; // Object is behind the wall
         }
     }
     
-    //return sprite;
     return layer[y][x]; 
 }
+
 
 function getComplimentaryColor(color) {
     // Extract the RGB components from the color
@@ -3672,7 +3781,7 @@ class UIBox {
         }
         createSprite(this.width - 1, this.yOffset, BOX_TOP_RIGHT, uiMap, 191);
 
-        console.log('Current textBuffer before drawing:', this.textBuffer);
+        //console.log('Current textBuffer before drawing:', this.textBuffer);
 
         for (let y = 1; y < this.height; y++) {
             createSprite(0, y + this.yOffset, BOX_VERTICAL, uiMap, 179);
@@ -3680,7 +3789,7 @@ class UIBox {
 
             let message = this.textBuffer[y - 1];
             if (message) {
-                console.log(`Drawing message at line ${y - 1}: ${message}`);
+                //console.log(`Drawing message at line ${y - 1}: ${message}`);
                 for (let i = 0; i < message.length; i++) {
                     let spriteLocation = this.charToSpriteLocation(message.charAt(i));
                     createSprite(i + 1, y + this.yOffset, spriteLocation, uiMap, message.charCodeAt(i));
@@ -3824,7 +3933,7 @@ async function setup() {
     addFloorsAndVoid();
     evaluateMapAndCreateWalls();
     addBaseAndShadows();    
-    let currentLevel = new Level();
+    currentLevel = new Level();
     levels.push(currentLevel);
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -3853,6 +3962,8 @@ async function setup() {
     let randomTile8 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile9 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
     let randomTile10 = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    let pitTile = publicTiles[Math.floor(Math.random() * publicTiles.length)];
+    new Pit(pitTile.x, pitTile.y);
     
     messageList = new UIBox(["Welcome to the Dungeon of Doom!"], MAP_WIDTH, 8, false, "top");
     inspector = new UIBox([], 30, 15, true, "top");
